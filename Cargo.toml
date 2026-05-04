@@ -1,0 +1,49 @@
+[package]
+name = "rig-resources"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+authors = ["Azreal Contributors"]
+description = "Reusable skills, tools, behavior patterns, and resource adapters for rig-compose agents."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/ForeverAngry/rig-resources"
+readme = "README.md"
+keywords = ["rig", "agent", "skill", "tool", "resources"]
+categories = ["asynchronous"]
+
+[features]
+default = []
+security = []
+graph = ["dep:petgraph"]
+full = ["security", "graph"]
+
+[dependencies]
+async-trait = "0.1"
+parking_lot = "0.12"
+petgraph = { version = "0.6", optional = true }
+rig-compose = { path = "../rig-compose", version = "0.1" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1.40", features = ["rt-multi-thread", "macros", "sync"] }
+
+[lints.clippy]
+dbg_macro = "forbid"
+await_holding_lock = "deny"
+await_holding_refcell_ref = "deny"
+expect_used = "deny"
+expect_fun_call = "deny"
+indexing_slicing = "deny"
+panic = "deny"
+panic_in_result_fn = "deny"
+todo = "forbid"
+unimplemented = "forbid"
+unreachable = "deny"
+unwrap_used = "deny"
+
+[profile.release]
+lto = true
+opt-level = "s"
