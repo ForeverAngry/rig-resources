@@ -11,6 +11,12 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/ForeverAngry/rig-resources/compare/v0.1.2...v0.1.3) - 2026-05-06
+
+### Added
+
+- Add memory lookup and ECS resources
+
 ### Added
 
 - `memory.lookup` resource contract: `MemoryLookupStore`, `MemoryLookupHit`,
