@@ -9,6 +9,13 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/ForeverAngry/rig-resources/compare/v0.1.1...v0.1.2) - 2026-05-06
+
+### Fixed
+
+- Depend on released rig-compose
+- Surface missing graph entities as inapplicable
+
 ### Fixed
 
 - `InMemoryGraph::expand` now returns `GraphError::NotFound` for unknown
