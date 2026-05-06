@@ -16,6 +16,7 @@
 )]
 
 pub mod baseline;
+pub mod memory;
 pub mod patterns;
 pub mod skills;
 
@@ -27,7 +28,9 @@ pub mod security;
 
 pub use baseline::{
     BaselineCompareTool, BaselineError, BaselineStore, EntityBaseline, InMemoryBaselineStore,
+    OnlineStats,
 };
+pub use memory::{MemoryLookupError, MemoryLookupHit, MemoryLookupStore, MemoryLookupTool};
 pub use patterns::{
     BehaviorPattern, BehaviorPatternSkill, BehaviorRegistry, PatternId, PatternRule,
 };

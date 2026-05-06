@@ -10,7 +10,7 @@ Reusable skills, tools, behavior patterns, and resource adapters for rig-compose
 
 ## Overview
 
-`rig-resources` is the reusable implementation layer for `rig-compose` agents. Where `rig-compose` defines the kernel traits and registries, this crate supplies concrete baseline stores, baseline tools, behavior-pattern skills, memory-pivot skills, optional graph resources, and optional security-oriented skills.
+`rig-resources` is the reusable implementation layer for `rig-compose` agents. Where `rig-compose` defines the kernel traits and registries, this crate supplies concrete baseline stores, baseline tools, memory lookup tools, behavior-pattern skills, memory-pivot skills, optional graph resources, and optional security-oriented skills.
 
 The default build is intentionally small. Graph resources are behind `graph`; security primitives are behind `security`; `full` enables both.
 
@@ -20,32 +20,34 @@ Agent systems built on `rig-compose` need common resources that should not live 
 
 ## Status
 
-- Crate version: `0.1.1`.
+- Crate version: `0.1.2`.
 - Rust edition: 2024.
 - MSRV: 1.88.
 - Runtime stance: runtime-agnostic library; `tokio` is only a dev-dependency.
-- `rig-compose` dependency: `version = "0.1"`, currently resolved through the sibling path [../rig-compose](../rig-compose) in this workspace.
-- Current Unreleased work makes missing graph entities typed: `InMemoryGraph::expand` returns `GraphError::NotFound`, `GraphTool` maps that to `KernelError::ToolNotApplicable`, and `GraphExpansionSkill` treats it as a no-op.
+- `rig-compose` dependency: `version = "0.2"`.
+- Current Unreleased work adds the canonical `memory.lookup` tool contract,
+  streaming baseline accumulation, and ECS-to-security-signal helpers.
 
 ## Feature Flags
 
 | Feature | Default | Enables | Checked by `just check` |
 | --- | --- | --- | --- |
-| none | yes | Baseline store/tool, behavior-pattern registry/skill, baseline compare skill, and memory pivot skill. | default clippy and test runs |
-| `security` | no | Namespaced security skills in [src/security](src/security): credential, exfil, lateral, and recon modules. | clippy and tests with `--features security` |
+| none | yes | Baseline store/tool, online baseline accumulator, memory lookup tool, behavior-pattern registry/skill, baseline compare skill, and memory pivot skill. | default clippy and test runs |
+| `security` | no | Namespaced security skills in [src/security](src/security): credential, ECS signal helpers, exfil, lateral, and recon modules. | clippy and tests with `--features security` |
 | `graph` | no | `petgraph`-backed graph store, graph tool, and graph expansion skill from [src/graph](src/graph). | clippy and tests with `--features graph` |
 | `full` | no | Convenience feature enabling `security` and `graph`. | clippy and tests with `--features full`; docs with all features |
 
 ## Key Types
 
-- [src/baseline.rs](src/baseline.rs): `BaselineStore`, `InMemoryBaselineStore`, `EntityBaseline`, `BaselineCompareTool`, and `BaselineError`. The tool returns availability and in-bound flags for an observed value against mean plus or minus `k * std_dev`.
+- [src/baseline.rs](src/baseline.rs): `BaselineStore`, `InMemoryBaselineStore`, `EntityBaseline`, `OnlineStats`, `BaselineCompareTool`, and `BaselineError`. The tool returns availability and in-bound flags for an observed value against mean plus or minus `k * std_dev`; `OnlineStats` builds baselines from streaming observations.
+- [src/memory.rs](src/memory.rs): `MemoryLookupStore`, `MemoryLookupHit`, `MemoryLookupTool`, and `MemoryLookupError`. The tool is named `memory.lookup`, matching `MemoryPivotSkill`.
 - [src/patterns.rs](src/patterns.rs): `BehaviorPattern`, `BehaviorRegistry`, `BehaviorPatternSkill`, `PatternRule`, and `PatternId`. Patterns are append-style, versioned rules over `InvestigationContext` signals.
 - [src/skills.rs](src/skills.rs): `BaselineCompareSkill` and `MemoryPivotSkill`. The baseline skill suppresses confidence for in-baseline behavior; the memory skill calls a registered `memory.lookup` tool after confidence crosses a threshold.
 - [src/graph/store.rs](src/graph/store.rs): `GraphStore`, `GraphEdge`, `Subgraph`, and `GraphError`, gated behind `graph`.
 - [src/graph/inmem.rs](src/graph/inmem.rs): `InMemoryGraph`, a `petgraph::DiGraph`-backed implementation with idempotent edge upserts and degree-style centrality.
 - [src/graph/tool.rs](src/graph/tool.rs): `GraphTool`, a `rig_compose::Tool` named `graph.entity` with `upsert`, `expand`, and `centrality` operations.
 - [src/graph/skills.rs](src/graph/skills.rs): `GraphExpansionSkill` and `GraphExpansionConfig`, which lift confidence when an entity's expanded graph fan-out exceeds a threshold.
-- [src/security](src/security): optional domain skills including `HighFanoutSkill`, `EntropyCheckSkill`, `SlowBeaconSkill`, credential, lateral, and exfil modules.
+- [src/security](src/security): optional domain skills including `HighFanoutSkill`, `EntropyCheckSkill`, `SlowBeaconSkill`, credential, ECS signal helpers, lateral, and exfil modules.
 
 ## Integration With Rig
 
@@ -98,7 +100,7 @@ That recipe runs formatter checks, clippy and tests for default, `security`, `gr
 
 ## Gotchas
 
-- `MemoryPivotSkill` does not provide storage. It expects a tool named `memory.lookup` in the agent's `ToolRegistry` and records the top hit as evidence when available.
+- `MemoryPivotSkill` does not provide storage. Register `MemoryLookupTool` with a backend implementing `MemoryLookupStore`, or register another compatible tool named `memory.lookup`.
 - `BaselineCompareTool` treats missing baselines as an unavailable result, not as a tool failure.
 - `GraphExpansionSkill` treats `KernelError::ToolNotApplicable` from `GraphTool` as sparse context and returns `SkillOutcome::noop()`.
 - The graph feature pulls in `petgraph`; keep graph-specific code gated behind `#[cfg(feature = "graph")]`.
@@ -111,15 +113,15 @@ These companion crates are maintained as separate repositories. Together they fo
 ```mermaid
 flowchart TD
     rig["rig / rig-core"]
-    compose["rig-compose 0.1.x"]
+    compose["rig-compose 0.2.x"]
     resources["rig-resources 0.1.x"]
     mcp["rig-mcp 0.1.x"]
     memvid["rig-memvid 0.1.x"]
     ballista["rig-ballista 0.1.x"]
 
     compose -. "Rig-shaped kernel; no direct rig-core dep" .-> rig
-    resources -- "rig-compose = 0.1; features: security, graph, full" --> compose
-    mcp -- "rig-compose = 0.1; rmcp stdio bridge" --> compose
+    resources -- "rig-compose = 0.2; features: security, graph, full" --> compose
+    mcp -- "rig-compose = 0.2; rmcp stdio bridge" --> compose
     memvid -- "rig-core = 0.36.0; features: lex, vec, api_embed, temporal, encryption" --> rig
     ballista -. "planned rig-compose catalog integration; no direct dep today" .-> compose
 ```
@@ -129,8 +131,8 @@ Pinned Rig-facing dependencies from the current manifests:
 | Crate | Direct Rig-facing dependency | Notes |
 | --- | --- | --- |
 | `rig-compose` | none | Defines a Rig-shaped kernel surface without depending on `rig-core`. |
-| `rig-resources` | `rig-compose = 0.1` | Uses a sibling path during local workspace development. |
-| `rig-mcp` | `rig-compose = 0.1` | Uses a sibling path during local workspace development. |
+| `rig-resources` | `rig-compose = 0.2` | Provides reusable skills, resource tools, and security helpers. |
+| `rig-mcp` | `rig-compose = 0.2` | Bridges `rig-compose` tools over MCP stdio and loopback transports. |
 | `rig-memvid` | `rig-core = 0.36.0` | Implements Rig vector-store and prompt-hook flows over Memvid. |
 | `rig-ballista` | none today | Ballista/Iceberg/DataFusion dependencies remain planned and commented out. |
 

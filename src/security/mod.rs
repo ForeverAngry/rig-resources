@@ -1,6 +1,7 @@
 //! Security-oriented skill catalog.
 
 pub mod credential;
+pub mod ecs;
 pub mod exfil;
 pub mod lateral;
 pub mod recon;

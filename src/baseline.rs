@@ -28,9 +28,81 @@ pub struct EntityBaseline {
 }
 
 impl EntityBaseline {
+    pub fn from_stats(
+        entity: impl Into<String>,
+        metric: impl Into<String>,
+        stats: &OnlineStats,
+    ) -> Self {
+        Self {
+            entity: entity.into(),
+            metric: metric.into(),
+            mean: stats.mean(),
+            std_dev: stats.std_dev(),
+            samples: stats.count(),
+        }
+    }
+
     pub fn within(&self, value: f64, k: f64) -> bool {
         let bound = (k * self.std_dev).max(f64::EPSILON);
         (value - self.mean).abs() <= bound
+    }
+}
+
+/// Online mean/variance accumulator for building [`EntityBaseline`] values.
+///
+/// Uses Welford's algorithm, so callers can update an environmental baseline
+/// one observation at a time without storing raw samples.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct OnlineStats {
+    count: u64,
+    mean: f64,
+    m2: f64,
+}
+
+impl OnlineStats {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn push(&mut self, value: f64) {
+        self.count = self.count.saturating_add(1);
+        let delta = value - self.mean;
+        self.mean += delta / self.count as f64;
+        let delta2 = value - self.mean;
+        self.m2 += delta * delta2;
+    }
+
+    pub fn count(&self) -> u64 {
+        self.count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
+    }
+
+    pub fn mean(&self) -> f64 {
+        self.mean
+    }
+
+    /// Sample variance. Returns `0.0` until at least two samples exist.
+    pub fn variance(&self) -> f64 {
+        if self.count < 2 {
+            0.0
+        } else {
+            self.m2 / (self.count - 1) as f64
+        }
+    }
+
+    pub fn std_dev(&self) -> f64 {
+        self.variance().sqrt()
+    }
+
+    pub fn to_baseline(
+        &self,
+        entity: impl Into<String>,
+        metric: impl Into<String>,
+    ) -> EntityBaseline {
+        EntityBaseline::from_stats(entity, metric, self)
     }
 }
 
@@ -178,6 +250,18 @@ mod tests {
         let b = baseline("e", "fanout", 10.0, 2.0);
         assert!(b.within(11.0, 2.0));
         assert!(!b.within(20.0, 2.0));
+    }
+
+    #[test]
+    fn online_stats_builds_entity_baseline() {
+        let mut stats = OnlineStats::new();
+        for value in [2.0_f64, 4.0, 4.0, 4.0, 5.0, 5.0, 7.0, 9.0] {
+            stats.push(value);
+        }
+        let baseline = stats.to_baseline("host", "bytes");
+        assert_eq!(baseline.samples, 8);
+        assert!((baseline.mean - 5.0).abs() < 1e-12);
+        assert!((baseline.std_dev - 4.571_428_571_428_f64.sqrt()).abs() < 1e-12);
     }
 
     #[tokio::test]

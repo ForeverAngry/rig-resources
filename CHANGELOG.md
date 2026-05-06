@@ -1,5 +1,7 @@
 # Changelog
 
+<!-- markdownlint-disable MD024 -->
+
 All notable changes to `rig-resources` will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
@@ -8,6 +10,19 @@ Versions are managed automatically by [release-plz](https://release-plz.dev/)
 from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
+
+### Added
+
+- `memory.lookup` resource contract: `MemoryLookupStore`, `MemoryLookupHit`,
+  `MemoryLookupError`, and `MemoryLookupTool`. This gives
+  `MemoryPivotSkill` a canonical tool implementation while leaving storage in
+  downstream crates such as `rig-memvid`.
+- `OnlineStats` Welford accumulator plus `EntityBaseline::from_stats` /
+  `OnlineStats::to_baseline` helpers for building baselines from streaming
+  observations.
+- `security::ecs` helpers for converting ECS-shaped JSON rows into stable
+  security signals such as `auth.failure`, `process.spawn`, `net.connect`, and
+  `lateral.move`.
 
 ## [0.1.2](https://github.com/ForeverAngry/rig-resources/compare/v0.1.1...v0.1.2) - 2026-05-06
 
