@@ -6,7 +6,7 @@ use async_trait::async_trait;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::store::{GraphEdge, GraphStore};
+use super::store::{GraphEdge, GraphError, GraphStore};
 use rig_compose::{KernelError, Tool, ToolSchema};
 
 pub struct GraphTool {
@@ -86,11 +86,15 @@ impl Tool for GraphTool {
                 Ok(json!({"ok": true}))
             }
             GraphOp::Expand { entity, depth } => {
-                let subgraph = self
-                    .store
-                    .expand(&entity, depth)
-                    .await
-                    .map_err(|err| KernelError::ToolFailed(err.to_string()))?;
+                let subgraph =
+                    self.store
+                        .expand(&entity, depth)
+                        .await
+                        .map_err(|err| match err {
+                            GraphError::NotFound(_) => {
+                                KernelError::ToolNotApplicable(err.to_string())
+                            }
+                        })?;
                 Ok(serde_json::to_value(subgraph)?)
             }
             GraphOp::Centrality { entity } => {
@@ -123,6 +127,19 @@ mod tests {
                 .unwrap()
                 .iter()
                 .any(|node| node == "b")
+        );
+    }
+
+    #[tokio::test]
+    async fn tool_expand_missing_entity_returns_error() {
+        let graph: Arc<dyn GraphStore> = Arc::new(InMemoryGraph::new());
+        let tool = GraphTool::new(graph);
+        let err = tool
+            .invoke(json!({"op": "expand", "entity": "missing", "depth": 1}))
+            .await
+            .unwrap_err();
+        assert!(
+            matches!(err, KernelError::ToolNotApplicable(message) if message.contains("missing"))
         );
     }
 }

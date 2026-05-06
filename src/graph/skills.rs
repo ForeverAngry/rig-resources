@@ -63,13 +63,20 @@ impl Skill for GraphExpansionSkill {
         tools: &ToolRegistry,
     ) -> Result<SkillOutcome, KernelError> {
         let tool = tools.get(GraphTool::NAME)?;
-        let value = tool
+        let value = match tool
             .invoke(json!({
                 "op": "expand",
                 "entity": ctx.entity_id,
                 "depth": self.cfg.depth,
             }))
-            .await?;
+            .await
+        {
+            Ok(value) => value,
+            // The graph has never observed this entity. That's a sparse-
+            // context signal, not a failure — short-circuit as a no-op.
+            Err(KernelError::ToolNotApplicable(_)) => return Ok(SkillOutcome::noop()),
+            Err(err) => return Err(err),
+        };
         let neighbours = distinct_neighbour_count(&value, &ctx.entity_id);
         if neighbours < self.cfg.fanout_threshold {
             return Ok(SkillOutcome::noop());
@@ -130,5 +137,18 @@ mod tests {
         let outcome = skill.execute(&mut ctx, &registry).await.unwrap();
         assert!(outcome.confidence_delta > 0.0);
         assert_eq!(ctx.evidence.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn missing_graph_entity_is_noop_for_skill() {
+        let store = Arc::new(InMemoryGraph::new());
+        let registry = registry_with(store);
+        let skill = GraphExpansionSkill::with_defaults();
+        let mut ctx = InvestigationContext::new("missing", "p");
+        ctx.confidence = 0.5;
+
+        let outcome = skill.execute(&mut ctx, &registry).await.unwrap();
+        assert_eq!(outcome.confidence_delta, 0.0);
+        assert!(ctx.evidence.is_empty());
     }
 }

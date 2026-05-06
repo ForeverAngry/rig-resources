@@ -59,15 +59,12 @@ impl GraphState {
             .unwrap_or(0)
     }
 
-    fn expand(&self, seed: &str, depth: usize) -> Subgraph {
+    fn expand(&self, seed: &str, depth: usize) -> Result<Subgraph, GraphError> {
+        let Some(&start) = self.index.get(seed) else {
+            return Err(GraphError::NotFound(seed.to_string()));
+        };
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
-        let Some(&start) = self.index.get(seed) else {
-            return Subgraph {
-                seed: seed.to_string(),
-                ..Default::default()
-            };
-        };
         let mut visited = std::collections::HashSet::new();
         let mut frontier = vec![(start, 0usize)];
         while let Some((node, distance)) = frontier.pop() {
@@ -83,11 +80,11 @@ impl GraphState {
                 frontier.push((edge.target(), distance + 1));
             }
         }
-        Subgraph {
+        Ok(Subgraph {
             seed: seed.to_string(),
             nodes,
             edges,
-        }
+        })
     }
 }
 
@@ -131,7 +128,7 @@ impl GraphStore for InMemoryGraph {
     async fn expand(&self, entity: &str, depth: usize) -> Result<Subgraph, GraphError> {
         let _span =
             tracing::debug_span!("rig_resources.graph.expand", entity = %entity, depth).entered();
-        Ok(self.state.read().expand(entity, depth))
+        self.state.read().expand(entity, depth)
     }
 
     async fn centrality(&self, entity: &str) -> f64 {
@@ -167,5 +164,12 @@ mod tests {
             .unwrap();
         assert_eq!(graph.node_count(), 2);
         assert_eq!(graph.edge_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn expand_missing_seed_returns_not_found() {
+        let graph = InMemoryGraph::new();
+        let err = graph.expand("missing", 1).await.unwrap_err();
+        assert!(matches!(err, GraphError::NotFound(entity) if entity == "missing"));
     }
 }

@@ -9,6 +9,17 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `InMemoryGraph::expand` now returns `GraphError::NotFound` for unknown
+  seed entities instead of an empty subgraph, so callers can distinguish a
+  missing graph node from a known isolated node. `GraphExpansionSkill`
+  treats that sparse-context case as a no-op while direct `GraphTool`
+  expansion calls remain fallible.
+- `GraphTool` now maps `GraphError::NotFound` to
+  `KernelError::ToolNotApplicable`, and `GraphExpansionSkill` matches on
+  that typed variant instead of inspecting error message text.
+
 ## [0.1.1](https://github.com/ForeverAngry/rig-resources/compare/v0.1.0...v0.1.1) - 2026-05-04
 
 ### Fixed
