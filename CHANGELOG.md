@@ -11,6 +11,11 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add crate-local `ROADMAP.md` documenting maturity status, next work, and
+  non-goals for reusable resource primitives.
+
 ## [0.1.4](https://github.com/ForeverAngry/rig-resources/compare/v0.1.3...v0.1.4) - 2026-05-07
 
 ### Documentation

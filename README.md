@@ -28,6 +28,10 @@ Agent systems built on `rig-compose` need common resources that should not live 
 - Current Unreleased work adds the canonical `memory.lookup` tool contract,
   streaming baseline accumulation, and ECS-to-security-signal helpers.
 
+The crate-local maturity plan lives in [ROADMAP.md](ROADMAP.md). Cross-crate
+coordination lives in
+[`rig-contributions/docs/roadmap.md`](../rig-contributions/docs/roadmap.md).
+
 ## Feature Flags
 
 | Feature | Default | Enables | Checked by `just check` |
