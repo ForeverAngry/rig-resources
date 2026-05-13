@@ -15,6 +15,10 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 - Add crate-local `ROADMAP.md` documenting maturity status, next work, and
   non-goals for reusable resource primitives.
+- Add caller-side context projection helpers for behavior patterns, memory
+  lookup hits, baselines, and accumulated investigation evidence.
+- Add `ResourceTraceEnvelope`, a crate-local trace metadata shape for resource
+  evidence, and attach it to graph expansion evidence.
 
 ## [0.1.4](https://github.com/ForeverAngry/rig-resources/compare/v0.1.3...v0.1.4) - 2026-05-07
 

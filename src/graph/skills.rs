@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use serde_json::{Value, json};
 
 use super::tool::GraphTool;
+use crate::ResourceTraceEnvelope;
 use rig_compose::{
     Evidence, InvestigationContext, KernelError, NextAction, Skill, SkillOutcome, ToolRegistry,
 };
@@ -87,6 +88,17 @@ impl Skill for GraphExpansionSkill {
                 "depth": self.cfg.depth,
                 "distinct_neighbours": neighbours,
                 "threshold": self.cfg.fanout_threshold,
+                "trace": ResourceTraceEnvelope::new("graph", "expand", "graph_expansion")
+                    .with_input_summary(json!({
+                        "entity": ctx.entity_id,
+                        "depth": self.cfg.depth,
+                    }))
+                    .with_output_summary(json!({
+                        "distinct_neighbours": neighbours,
+                        "threshold": self.cfg.fanout_threshold,
+                    }))
+                    .with_reason("fanout_threshold_exceeded")
+                    .to_value(),
             })));
         Ok(SkillOutcome::default()
             .with_delta(self.cfg.confidence_lift)

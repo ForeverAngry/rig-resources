@@ -21,7 +21,7 @@ full = ["security", "graph"]
 async-trait = "0.1"
 parking_lot = "0.12"
 petgraph = { version = "0.6", optional = true }
-rig-compose = "0.2"
+rig-compose = { version = "0.2", path = "../rig-compose" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 thiserror = "1.0"

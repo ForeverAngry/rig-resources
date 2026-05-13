@@ -20,13 +20,14 @@ Agent systems built on `rig-compose` need common resources that should not live 
 
 ## Status
 
-- Crate version: `0.1.2`.
+- Crate version: `0.1.4`.
 - Rust edition: 2024.
 - MSRV: 1.88.
 - Runtime stance: runtime-agnostic library; `tokio` is only a dev-dependency.
 - `rig-compose` dependency: `version = "0.2"`.
 - Current Unreleased work adds the canonical `memory.lookup` tool contract,
-  streaming baseline accumulation, and ECS-to-security-signal helpers.
+    streaming baseline accumulation, ECS-to-security-signal helpers, resource
+    context projection helpers, and a local resource trace envelope.
 
 The crate-local maturity plan lives in [ROADMAP.md](ROADMAP.md). Cross-crate
 coordination lives in
@@ -46,7 +47,9 @@ coordination lives in
 - [src/baseline.rs](src/baseline.rs): `BaselineStore`, `InMemoryBaselineStore`, `EntityBaseline`, `OnlineStats`, `BaselineCompareTool`, and `BaselineError`. The tool returns availability and in-bound flags for an observed value against mean plus or minus `k * std_dev`; `OnlineStats` builds baselines from streaming observations.
 - [src/memory.rs](src/memory.rs): `MemoryLookupStore`, `MemoryLookupHit`, `MemoryLookupTool`, and `MemoryLookupError`. The tool is named `memory.lookup`, matching `MemoryPivotSkill`.
 - [src/patterns.rs](src/patterns.rs): `BehaviorPattern`, `BehaviorRegistry`, `BehaviorPatternSkill`, `PatternRule`, and `PatternId`. Patterns are append-style, versioned rules over `InvestigationContext` signals.
+- [src/projection.rs](src/projection.rs): `IntoContextItem` plus helpers for projecting behavior patterns, baselines, memory hits, and accumulated evidence into `rig_compose::ContextItem` / `ContextPack`.
 - [src/skills.rs](src/skills.rs): `BaselineCompareSkill` and `MemoryPivotSkill`. The baseline skill suppresses confidence for in-baseline behavior; the memory skill calls a registered `memory.lookup` tool after confidence crosses a threshold.
+- [src/trace.rs](src/trace.rs): `ResourceTraceEnvelope`, a crate-local JSON envelope for resource evidence metadata while cross-kernel trace shapes are still being proven.
 - [src/graph/store.rs](src/graph/store.rs): `GraphStore`, `GraphEdge`, `Subgraph`, and `GraphError`, gated behind `graph`.
 - [src/graph/inmem.rs](src/graph/inmem.rs): `InMemoryGraph`, a `petgraph::DiGraph`-backed implementation with idempotent edge upserts and degree-style centrality.
 - [src/graph/tool.rs](src/graph/tool.rs): `GraphTool`, a `rig_compose::Tool` named `graph.entity` with `upsert`, `expand`, and `centrality` operations.
@@ -55,7 +58,7 @@ coordination lives in
 
 ## Integration With Rig
 
-`rig-resources` integrates through `rig-compose`, not directly through `rig-core`. It pins `rig-compose` as `version = "0.1"` and currently uses the local sibling path in [Cargo.toml](Cargo.toml) for workspace development.
+`rig-resources` integrates through `rig-compose`, not directly through `rig-core`. It pins `rig-compose` as `version = "0.2"` in [Cargo.toml](Cargo.toml).
 
 All exported skills implement `rig_compose::Skill`; exported tools implement `rig_compose::Tool`. That means agents register them in `SkillRegistry` and `ToolRegistry` the same way they register caller-defined local logic.
 
@@ -107,6 +110,7 @@ That recipe runs formatter checks, clippy and tests for default, `security`, `gr
 - `MemoryPivotSkill` does not provide storage. Register `MemoryLookupTool` with a backend implementing `MemoryLookupStore`, or register another compatible tool named `memory.lookup`.
 - `BaselineCompareTool` treats missing baselines as an unavailable result, not as a tool failure.
 - `GraphExpansionSkill` treats `KernelError::ToolNotApplicable` from `GraphTool` as sparse context and returns `SkillOutcome::noop()`.
+- Projection helpers are caller-side: they convert existing records or accumulated evidence into `ContextItem`s without adding fields to `rig_compose::InvestigationContext`.
 - The graph feature pulls in `petgraph`; keep graph-specific code gated behind `#[cfg(feature = "graph")]`.
 - The library uses `parking_lot` guards. Do not hold guards across `.await` points.
 
