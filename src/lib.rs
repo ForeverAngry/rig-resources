@@ -18,7 +18,9 @@
 pub mod baseline;
 pub mod memory;
 pub mod patterns;
+pub mod projection;
 pub mod skills;
+pub mod trace;
 
 #[cfg(feature = "graph")]
 pub mod graph;
@@ -34,7 +36,12 @@ pub use memory::{MemoryLookupError, MemoryLookupHit, MemoryLookupStore, MemoryLo
 pub use patterns::{
     BehaviorPattern, BehaviorPatternSkill, BehaviorRegistry, PatternId, PatternRule,
 };
+pub use projection::{
+    IntoContextItem, evidence_to_context_item, evidence_to_context_items,
+    memory_hit_to_context_item, memory_hits_to_context_items, pack_resource_context,
+};
 pub use skills::{BaselineCompareSkill, MemoryPivotSkill};
+pub use trace::ResourceTraceEnvelope;
 
 #[cfg(feature = "graph")]
 pub use graph::{

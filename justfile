@@ -13,7 +13,7 @@ build:
     cargo build --all-targets
 
 # Run formatter check + clippy + tests across release-relevant feature sets.
-check: fmt clippy test doc
+check: fmt clippy test msrv doc
 
 fmt:
     cargo fmt --all -- --check
@@ -29,6 +29,9 @@ test:
     cargo test --all-targets --features security
     cargo test --all-targets --features graph
     cargo test --all-targets --features full
+
+msrv:
+    cargo +1.88 build --all-targets --all-features
 
 doc:
     RUSTDOCFLAGS="-D warnings -D rustdoc::broken_intra_doc_links" cargo doc --all-features --no-deps
