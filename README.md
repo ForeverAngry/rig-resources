@@ -24,7 +24,7 @@ Agent systems built on `rig-compose` need common resources that should not live 
 - Rust edition: 2024.
 - MSRV: 1.88.
 - Runtime stance: runtime-agnostic library; `tokio` is only a dev-dependency.
-- `rig-compose` dependency: `version = "0.2"`.
+- `rig-compose` dependency: `version = "0.3"`.
 - Current Unreleased work adds the canonical `memory.lookup` tool contract,
     streaming baseline accumulation, ECS-to-security-signal helpers, resource
     context projection helpers, and a local resource trace envelope.
@@ -58,7 +58,7 @@ coordination lives in
 
 ## Integration With Rig
 
-`rig-resources` integrates through `rig-compose`, not directly through `rig-core`. It pins `rig-compose` as `version = "0.2"` in [Cargo.toml](Cargo.toml).
+`rig-resources` integrates through `rig-compose`, not directly through `rig-core`. It pins `rig-compose` as `version = "0.3"` in [Cargo.toml](Cargo.toml).
 
 All exported skills implement `rig_compose::Skill`; exported tools implement `rig_compose::Tool`. That means agents register them in `SkillRegistry` and `ToolRegistry` the same way they register caller-defined local logic.
 
