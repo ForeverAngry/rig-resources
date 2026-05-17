@@ -34,9 +34,9 @@ test:
     cargo test --all-targets --features graph
     cargo test --all-targets --features full
 
-# MSRV gate (Rust 1.89).
+# MSRV gate (Rust 1.88).
 msrv:
-    cargo +1.89 build --all-targets --all-features
+    cargo +1.88 build --all-targets --all-features
 
 # Rustdoc with strict warnings.
 doc:
