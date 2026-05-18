@@ -62,7 +62,7 @@ coordination lives in
 
 All exported skills implement `rig_compose::Skill`; exported tools implement `rig_compose::Tool`. That means agents register them in `SkillRegistry` and `ToolRegistry` the same way they register caller-defined local logic.
 
-## Usage
+## Quick start
 
 The baseline path is covered by unit tests in [src/baseline.rs](src/baseline.rs). This example mirrors `tool_reports_available_and_within` while avoiding test-only unwraps.
 
