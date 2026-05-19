@@ -11,6 +11,12 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+## [0.1.5](https://github.com/ForeverAngry/rig-resources/compare/v0.1.4...v0.1.5) - 2026-05-12
+
+### Documentation
+
+- Add resource roadmap
+
 ### Added
 
 - Add crate-local `ROADMAP.md` documenting maturity status, next work, and
