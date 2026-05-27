@@ -11,6 +11,12 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+## [0.1.6](https://github.com/ForeverAngry/rig-resources/compare/v0.1.5...v0.1.6) - 2026-05-27
+
+### Added
+
+- Project graph resources into context
+
 ### Added
 
 - Extend resource context projection to graph expansions: `Subgraph` now
