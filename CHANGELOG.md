@@ -11,6 +11,18 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Extend resource context projection to graph expansions: `Subgraph` now
+  implements `IntoContextItem` behind the `graph` feature, and
+  `subgraph_to_context_item` projects node/edge counts plus graph provenance
+  into `rig_compose::ContextItem`.
+
+### Changed
+
+- Align the sibling `rig-compose` dependency with the local `0.4` crate so
+  `just check` resolves the path dependency successfully.
+
 ## [0.1.5](https://github.com/ForeverAngry/rig-resources/compare/v0.1.4...v0.1.5) - 2026-05-12
 
 ### Documentation

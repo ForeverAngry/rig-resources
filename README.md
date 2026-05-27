@@ -20,11 +20,11 @@ Agent systems built on `rig-compose` need common resources that should not live 
 
 ## Status
 
-- Crate version: `0.1.4`.
+- Crate version: `0.1.5`.
 - Rust edition: 2024.
 - MSRV: 1.88.
 - Runtime stance: runtime-agnostic library; `tokio` is only a dev-dependency.
-- `rig-compose` dependency: `version = "0.3"`.
+- `rig-compose` dependency: `version = "0.4"`.
 - Current Unreleased work adds the canonical `memory.lookup` tool contract,
     streaming baseline accumulation, ECS-to-security-signal helpers, resource
     context projection helpers, and a local resource trace envelope.
@@ -37,7 +37,7 @@ coordination lives in
 
 | Feature | Default | Enables | Checked by `just check` |
 | --- | --- | --- | --- |
-| none | yes | Baseline store/tool, online baseline accumulator, memory lookup tool, behavior-pattern registry/skill, baseline compare skill, and memory pivot skill. | default clippy and test runs |
+| none | yes | Baseline store/tool, online baseline accumulator, memory lookup tool, behavior-pattern registry/skill, projection helpers, baseline compare skill, and memory pivot skill. | default clippy and test runs |
 | `security` | no | Namespaced security skills in [src/security](src/security): credential, ECS signal helpers, exfil, lateral, and recon modules. | clippy and tests with `--features security` |
 | `graph` | no | `petgraph`-backed graph store, graph tool, and graph expansion skill from [src/graph](src/graph). | clippy and tests with `--features graph` |
 | `full` | no | Convenience feature enabling `security` and `graph`. | clippy and tests with `--features full`; docs with all features |
@@ -47,7 +47,7 @@ coordination lives in
 - [src/baseline.rs](src/baseline.rs): `BaselineStore`, `InMemoryBaselineStore`, `EntityBaseline`, `OnlineStats`, `BaselineCompareTool`, and `BaselineError`. The tool returns availability and in-bound flags for an observed value against mean plus or minus `k * std_dev`; `OnlineStats` builds baselines from streaming observations.
 - [src/memory.rs](src/memory.rs): `MemoryLookupStore`, `MemoryLookupHit`, `MemoryLookupTool`, and `MemoryLookupError`. The tool is named `memory.lookup`, matching `MemoryPivotSkill`.
 - [src/patterns.rs](src/patterns.rs): `BehaviorPattern`, `BehaviorRegistry`, `BehaviorPatternSkill`, `PatternRule`, and `PatternId`. Patterns are append-style, versioned rules over `InvestigationContext` signals.
-- [src/projection.rs](src/projection.rs): `IntoContextItem` plus helpers for projecting behavior patterns, baselines, memory hits, and accumulated evidence into `rig_compose::ContextItem` / `ContextPack`.
+- [src/projection.rs](src/projection.rs): `IntoContextItem` plus helpers for projecting behavior patterns, baselines, memory hits, graph expansions, and accumulated evidence into `rig_compose::ContextItem` / `ContextPack`.
 - [src/skills.rs](src/skills.rs): `BaselineCompareSkill` and `MemoryPivotSkill`. The baseline skill suppresses confidence for in-baseline behavior; the memory skill calls a registered `memory.lookup` tool after confidence crosses a threshold.
 - [src/trace.rs](src/trace.rs): `ResourceTraceEnvelope`, a crate-local JSON envelope for resource evidence metadata while cross-kernel trace shapes are still being proven.
 - [src/graph/store.rs](src/graph/store.rs): `GraphStore`, `GraphEdge`, `Subgraph`, and `GraphError`, gated behind `graph`.
@@ -58,7 +58,7 @@ coordination lives in
 
 ## Integration With Rig
 
-`rig-resources` integrates through `rig-compose`, not directly through `rig-core`. It pins `rig-compose` as `version = "0.3"` in [Cargo.toml](Cargo.toml).
+`rig-resources` integrates through `rig-compose`, not directly through `rig-core`. It pins `rig-compose` as `version = "0.4"` in [Cargo.toml](Cargo.toml).
 
 All exported skills implement `rig_compose::Skill`; exported tools implement `rig_compose::Tool`. That means agents register them in `SkillRegistry` and `ToolRegistry` the same way they register caller-defined local logic.
 
@@ -82,7 +82,7 @@ store
         entity: "host-1".into(),
         metric: "fanout".into(),
         mean: 100.0,
-        std_dev: 5.0,
+The default build is intentionally small. Graph resources are behind `graph`; security primitives are behind `security`; `full` enables both.
         samples: 128,
     })
     .await?;
@@ -94,7 +94,7 @@ let output = tool
 
 assert_eq!(output.get("available").and_then(serde_json::Value::as_bool), Some(true));
 assert_eq!(output.get("within").and_then(serde_json::Value::as_bool), Some(true));
-# Ok(()) }
+- `rig-compose` dependency: `version = "0.4"`.
 ```
 
 Graph behavior is covered by tests in [src/graph/tool.rs](src/graph/tool.rs), [src/graph/skills.rs](src/graph/skills.rs), and [src/graph/inmem.rs](src/graph/inmem.rs) when the `graph` feature is enabled.
@@ -116,20 +116,20 @@ That recipe runs formatter checks, clippy and tests for default, `security`, `gr
 
 ## Ecosystem
 
-These companion crates are maintained as separate repositories. Together they form a small stack around the upstream Rig project: `rig-compose` provides the kernel surface, `rig-resources` contributes reusable skills and tools, `rig-mcp` moves tools across MCP, `rig-memvid` connects Rig agents to persistent `.mv2` memory, and `rig-model-meta` abstracts LLM metadata and probes.
+These companion crates are maintained as separate repositories. Together they form a small stack around the upstream Rig project: `rig-compose` provides the kernel surface, `rig-resources` contributes reusable skills and tools, `rig-mcp` moves tools across MCP, `rig-memvid` connects Rig agents to persistent `.mv2` memory, and `rig-model-catalog` abstracts LLM metadata and probes.
 
 ```mermaid
 flowchart TD
     rig["rig / rig-core"]
-    compose["rig-compose 0.3.x"]
+    compose["rig-compose 0.4.x"]
     resources["rig-resources 0.1.x"]
     mcp["rig-mcp 0.1.x"]
     memvid["rig-memvid 0.1.x"]
-    model_meta["rig-model-meta 0.1.x"]
+    model_meta["rig-model-catalog 0.1.x"]
 
     compose -. "Rig-shaped kernel; no direct rig-core dep" .-> rig
-    resources -- "rig-compose = 0.3; features: security, graph, full" --> compose
-    mcp -- "rig-compose = 0.3; rmcp stdio bridge" --> compose
+    resources -- "rig-compose = 0.4; features: security, graph, full" --> compose
+    mcp -- "rig-compose = 0.4; rmcp stdio bridge" --> compose
     memvid -- "rig-core = 0.37.0; features: lex, simd, vec, api_embed, temporal, encryption, compaction, context-projection" --> rig
     model_meta -. "optional rig-core = 0.37 via rig-hook" .-> rig
 ```
@@ -139,10 +139,10 @@ Pinned Rig-facing dependencies from the current manifests:
 | Crate | Direct Rig-facing dependency | Notes |
 | --- | --- | --- |
 | `rig-compose` | none | Defines a Rig-shaped kernel surface without depending on `rig-core`. |
-| `rig-resources` | `rig-compose = 0.3` | Provides reusable skills, resource tools, and security helpers. |
-| `rig-mcp` | `rig-compose = 0.3` | Bridges `rig-compose` tools over MCP stdio and loopback transports. |
-| `rig-memvid` | `rig-core = 0.37.0`; optional `rig-compose = 0.3` | Implements Rig vector-store, prompt-hook, compaction, and context-projection flows over Memvid. |
-| `rig-model-meta` | optional `rig-core = 0.37` via `rig-hook` | Provides standalone model traits plus optional Rig prompt-hook telemetry. |
+| `rig-resources` | `rig-compose = 0.4` | Provides reusable skills, resource tools, and security helpers. |
+| `rig-mcp` | `rig-compose = 0.4` | Bridges `rig-compose` tools over MCP stdio and loopback transports. |
+| `rig-memvid` | `rig-core = 0.37.0`; optional `rig-compose = 0.4` | Implements Rig vector-store, prompt-hook, compaction, and context-projection flows over Memvid. |
+| `rig-model-catalog` | optional `rig-core = 0.37` via `rig-hook` | Provides standalone model traits plus optional Rig prompt-hook telemetry. |
 
 The concrete multi-crate workflow tested today is the MCP loopback path: a `rig_compose::ToolRegistry` is exposed through `rig_mcp::LoopbackTransport`, remote schemas are wrapped as `rig_mcp::McpTool`, and the wrapped tools are registered back into another `ToolRegistry`. That proves a local `rig-compose` tool and an MCP-adapted tool are indistinguishable to callers. The backing test is `mcp_tool_indistinguishable_from_local` in [rig-mcp/src/transport.rs](https://github.com/ForeverAngry/rig-mcp/blob/main/src/transport.rs).
 

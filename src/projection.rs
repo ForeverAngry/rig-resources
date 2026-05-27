@@ -7,6 +7,9 @@ use serde_json::{Value, json};
 
 use crate::{BehaviorPattern, EntityBaseline, MemoryLookupHit};
 
+#[cfg(feature = "graph")]
+use crate::Subgraph;
+
 /// Convert resource-native records into [`ContextItem`] values.
 pub trait IntoContextItem {
     /// Project this resource record into a prompt-ready context item.
@@ -63,6 +66,13 @@ impl IntoContextItem for MemoryLookupHit {
     }
 }
 
+#[cfg(feature = "graph")]
+impl IntoContextItem for Subgraph {
+    fn to_context_item(&self) -> ContextItem {
+        subgraph_to_context_item(self, 0)
+    }
+}
+
 /// Project a memory lookup hit into a ranked memory context item.
 #[must_use]
 pub fn memory_hit_to_context_item(hit: &MemoryLookupHit, rank: usize) -> ContextItem {
@@ -99,6 +109,30 @@ pub fn evidence_to_context_items(ctx: &InvestigationContext) -> Vec<ContextItem>
         .enumerate()
         .map(|(rank, evidence)| evidence_to_context_item(evidence, rank))
         .collect()
+}
+
+/// Project a graph expansion into a resource context item.
+#[cfg(feature = "graph")]
+#[must_use]
+pub fn subgraph_to_context_item(subgraph: &Subgraph, rank: usize) -> ContextItem {
+    let node_count = subgraph.nodes.len();
+    let edge_count = subgraph.edges.len();
+    ContextItem::new(
+        ContextSourceKind::Resource,
+        format!("graph/{}", subgraph.seed),
+        format!(
+            "graph expansion for {}: {} nodes, {} edges",
+            subgraph.seed, node_count, edge_count
+        ),
+    )
+    .with_rank(rank)
+    .with_score(node_count.saturating_add(edge_count) as f64)
+    .with_provenance(json!({
+        "resource": "graph.subgraph",
+        "seed": subgraph.seed,
+        "nodes": subgraph.nodes,
+        "edges": subgraph.edges,
+    }))
 }
 
 /// Project one evidence record into a context item.
@@ -213,5 +247,26 @@ mod tests {
         assert_eq!(pack.omitted[0].reason, ContextOmissionReason::MaxItems);
         assert_eq!(pack.selected[0].source, ContextSourceKind::Memory);
         assert_eq!(pack.selected[0].text, "matching episode");
+    }
+
+    #[cfg(feature = "graph")]
+    #[test]
+    fn subgraph_projects_to_resource_context() {
+        use crate::GraphEdge;
+
+        let subgraph = Subgraph {
+            seed: "host-1".into(),
+            nodes: vec!["host-1".into(), "host-2".into()],
+            edges: vec![GraphEdge::new("host-1", "host-2", "connects")],
+        };
+
+        let item = subgraph_to_context_item(&subgraph, 3);
+
+        assert_eq!(item.source, ContextSourceKind::Resource);
+        assert_eq!(item.source_id, "graph/host-1");
+        assert_eq!(item.rank, 3);
+        assert_eq!(item.score, 3.0);
+        assert_eq!(item.provenance["resource"], "graph.subgraph");
+        assert_eq!(item.provenance["seed"], "host-1");
     }
 }
