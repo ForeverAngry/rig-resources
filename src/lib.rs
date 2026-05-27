@@ -36,6 +36,8 @@ pub use memory::{MemoryLookupError, MemoryLookupHit, MemoryLookupStore, MemoryLo
 pub use patterns::{
     BehaviorPattern, BehaviorPatternSkill, BehaviorRegistry, PatternId, PatternRule,
 };
+#[cfg(feature = "graph")]
+pub use projection::subgraph_to_context_item;
 pub use projection::{
     IntoContextItem, evidence_to_context_item, evidence_to_context_items,
     memory_hit_to_context_item, memory_hits_to_context_items, pack_resource_context,
