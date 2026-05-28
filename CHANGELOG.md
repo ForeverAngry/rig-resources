@@ -11,6 +11,8 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/ForeverAngry/rig-resources/compare/v0.1.6...v0.2.0) - 2026-05-28
+
 ### Added
 
 - Add shared provenance fields to resource context projections. Behavior
