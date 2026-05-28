@@ -27,7 +27,8 @@ Agent systems built on `rig-compose` need common resources that should not live 
 - `rig-compose` dependency: `version = "0.4"`.
 - Current Unreleased work adds the canonical `memory.lookup` tool contract,
     streaming baseline accumulation, ECS-to-security-signal helpers, resource
-    context projection helpers, and a local resource trace envelope.
+    context projection helpers with shared provenance keys, and a local
+    resource trace envelope.
 
 The crate-local maturity plan lives in [ROADMAP.md](ROADMAP.md). Cross-crate
 coordination lives in
@@ -45,9 +46,9 @@ coordination lives in
 ## Key Types
 
 - [src/baseline.rs](src/baseline.rs): `BaselineStore`, `InMemoryBaselineStore`, `EntityBaseline`, `OnlineStats`, `BaselineCompareTool`, and `BaselineError`. The tool returns availability and in-bound flags for an observed value against mean plus or minus `k * std_dev`; `OnlineStats` builds baselines from streaming observations.
-- [src/memory.rs](src/memory.rs): `MemoryLookupStore`, `MemoryLookupHit`, `MemoryLookupTool`, and `MemoryLookupError`. The tool is named `memory.lookup`, matching `MemoryPivotSkill`.
+- [src/memory.rs](src/memory.rs): `MemoryLookupStore`, `MemoryLookupHit`, `MemoryLookupTool`, and `MemoryLookupError`. The tool is named `memory.lookup`, matching `MemoryPivotSkill`. Hits can carry source URI, principal, scope, and recorded-at metadata for downstream context projection.
 - [src/patterns.rs](src/patterns.rs): `BehaviorPattern`, `BehaviorRegistry`, `BehaviorPatternSkill`, `PatternRule`, and `PatternId`. Patterns are append-style, versioned rules over `InvestigationContext` signals.
-- [src/projection.rs](src/projection.rs): `IntoContextItem` plus helpers for projecting behavior patterns, baselines, memory hits, graph expansions, and accumulated evidence into `rig_compose::ContextItem` / `ContextPack`.
+- [src/projection.rs](src/projection.rs): `IntoContextItem` plus helpers for projecting behavior patterns, baselines, memory hits, graph expansions, and accumulated evidence into `rig_compose::ContextItem` / `ContextPack`. Projection provenance uses stable JSON keys aligned with `rig-compose`'s typed context provenance vocabulary while this crate continues to depend on released `rig-compose = "0.4"`.
 - [src/skills.rs](src/skills.rs): `BaselineCompareSkill` and `MemoryPivotSkill`. The baseline skill suppresses confidence for in-baseline behavior; the memory skill calls a registered `memory.lookup` tool after confidence crosses a threshold.
 - [src/trace.rs](src/trace.rs): `ResourceTraceEnvelope`, a crate-local JSON envelope for resource evidence metadata while cross-kernel trace shapes are still being proven.
 - [src/graph/store.rs](src/graph/store.rs): `GraphStore`, `GraphEdge`, `Subgraph`, and `GraphError`, gated behind `graph`.
@@ -110,7 +111,7 @@ That recipe runs formatter checks, clippy and tests for default, `security`, `gr
 - `MemoryPivotSkill` does not provide storage. Register `MemoryLookupTool` with a backend implementing `MemoryLookupStore`, or register another compatible tool named `memory.lookup`.
 - `BaselineCompareTool` treats missing baselines as an unavailable result, not as a tool failure.
 - `GraphExpansionSkill` treats `KernelError::ToolNotApplicable` from `GraphTool` as sparse context and returns `SkillOutcome::noop()`.
-- Projection helpers are caller-side: they convert existing records or accumulated evidence into `ContextItem`s without adding fields to `rig_compose::InvestigationContext`.
+- Projection helpers are caller-side: they convert existing records or accumulated evidence into `ContextItem`s without adding fields to `rig_compose::InvestigationContext`. Shared provenance keys include `source_uri`, `principal`, `scope`, `recorded_at_millis`, `confidence`, `source_frame_id`, `projection_state`, and `reason` where the source can provide them.
 - The graph feature pulls in `petgraph`; keep graph-specific code gated behind `#[cfg(feature = "graph")]`.
 - The library uses `parking_lot` guards. Do not hold guards across `.await` points.
 

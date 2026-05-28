@@ -33,6 +33,19 @@ pub struct MemoryLookupHit {
     /// Optional stable store key, frame id, or episode id.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub key: Option<String>,
+    /// Optional URI or locator for the backing memory source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_uri: Option<String>,
+    /// Optional principal, actor, tenant, or subject associated with the hit.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub principal: Option<String>,
+    /// Optional caller-defined lookup scope such as tenant, workspace, or
+    /// profile.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<String>,
+    /// Optional milliseconds since the Unix epoch when the source was recorded.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recorded_at_millis: Option<i64>,
     /// Optional store-specific metadata.
     #[serde(default, skip_serializing_if = "Value::is_null")]
     pub metadata: Value,
@@ -45,6 +58,10 @@ impl MemoryLookupHit {
             score,
             summary: summary.into(),
             key: None,
+            source_uri: None,
+            principal: None,
+            scope: None,
+            recorded_at_millis: None,
             metadata: Value::Null,
         }
     }
@@ -52,6 +69,30 @@ impl MemoryLookupHit {
     /// Attach a stable storage key.
     pub fn with_key(mut self, key: impl Into<String>) -> Self {
         self.key = Some(key.into());
+        self
+    }
+
+    /// Attach a source URI or locator.
+    pub fn with_source_uri(mut self, source_uri: impl Into<String>) -> Self {
+        self.source_uri = Some(source_uri.into());
+        self
+    }
+
+    /// Attach the principal, actor, tenant, or subject associated with the hit.
+    pub fn with_principal(mut self, principal: impl Into<String>) -> Self {
+        self.principal = Some(principal.into());
+        self
+    }
+
+    /// Attach the caller-defined lookup scope.
+    pub fn with_scope(mut self, scope: impl Into<String>) -> Self {
+        self.scope = Some(scope.into());
+        self
+    }
+
+    /// Attach the source record timestamp in milliseconds since the Unix epoch.
+    pub fn with_recorded_at_millis(mut self, recorded_at_millis: i64) -> Self {
+        self.recorded_at_millis = Some(recorded_at_millis);
         self
     }
 
@@ -129,6 +170,10 @@ impl Tool for MemoryLookupTool {
                                 "score": {"type": "number"},
                                 "summary": {"type": "string"},
                                 "key": {"type": "string"},
+                                "source_uri": {"type": "string"},
+                                "principal": {"type": "string"},
+                                "scope": {"type": "string"},
+                                "recorded_at_millis": {"type": "integer"},
                                 "metadata": {"type": "object"}
                             }
                         }
@@ -192,6 +237,24 @@ mod tests {
         let score = out["hits"][0]["score"].as_f64().unwrap();
         assert!((score - 0.9).abs() < 1e-6);
         assert_eq!(out["hits"][0]["key"], "ep-1");
+    }
+
+    #[test]
+    fn lookup_hit_serializes_shared_metadata() {
+        let hit = MemoryLookupHit::new(0.75, "matched episode")
+            .with_key("ep-7")
+            .with_source_uri("memory://episode/7")
+            .with_principal("alice")
+            .with_scope("workspace")
+            .with_recorded_at_millis(1_700_000_000_000);
+
+        let json = serde_json::to_value(hit).unwrap();
+
+        assert_eq!(json["key"], "ep-7");
+        assert_eq!(json["source_uri"], "memory://episode/7");
+        assert_eq!(json["principal"], "alice");
+        assert_eq!(json["scope"], "workspace");
+        assert_eq!(json["recorded_at_millis"], 1_700_000_000_000_i64);
     }
 
     #[tokio::test]
