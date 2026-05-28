@@ -20,15 +20,18 @@ Agent systems built on `rig-compose` need common resources that should not live 
 
 ## Status
 
-- Crate version: `0.1.5`.
+- Crate version: `0.2.0`.
 - Rust edition: 2024.
 - MSRV: 1.88.
 - Runtime stance: runtime-agnostic library; `tokio` is only a dev-dependency.
 - `rig-compose` dependency: `version = "0.4"`.
-- Current Unreleased work adds the canonical `memory.lookup` tool contract,
-    streaming baseline accumulation, ECS-to-security-signal helpers, resource
-    context projection helpers with shared provenance keys, and a local
-    resource trace envelope.
+- The 0.1.6 \u2192 0.2.0 line shipped the canonical `memory.lookup` tool contract,
+  streaming baseline accumulation, ECS-to-security-signal helpers, resource
+  context projection helpers with shared provenance keys (`source_uri`,
+  `principal`, `scope`, `recorded_at_millis`, `confidence`, `source_frame_id`,
+  `projection_state`, `reason`), `MemoryLookupHit` provenance builder methods,
+  and a local resource trace envelope. See [CHANGELOG.md](CHANGELOG.md) for the
+  per-release breakdown.
 
 The crate-local maturity plan lives in [ROADMAP.md](ROADMAP.md). Cross-crate
 coordination lives in
