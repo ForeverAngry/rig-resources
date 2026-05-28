@@ -5,6 +5,8 @@ use serde_json::json;
 
 use rig_compose::{Evidence, InvestigationContext, KernelError, Skill, SkillOutcome, ToolRegistry};
 
+use crate::memory::{MemoryLookupHit, memory_lookup_trace_envelope};
+
 /// `general.baseline_compare` — suppresses confidence when behaviour falls
 /// inside the entity's known baseline. Conservative by design: if no
 /// `baseline.available` signal is present the skill is a no-op.
@@ -72,15 +74,33 @@ impl Skill for MemoryPivotSkill {
         let v = tool
             .invoke(json!({"query": ctx.entity_id, "k": self.k}))
             .await?;
-        let top = v
-            .get("hits")
-            .and_then(|h| h.as_array())
-            .and_then(|a| a.first())
-            .cloned();
-        if let Some(hit) = top {
+
+        // Decode typed hits when the tool conforms to MemoryLookupTool's
+        // schema. Stores that emit a different shape get the legacy
+        // raw-JSON evidence path without the trace envelope; this keeps
+        // the skill backward-compatible with non-canonical memory tools.
+        let hits_array = v.get("hits").and_then(|h| h.as_array()).cloned();
+        let typed_hits: Vec<MemoryLookupHit> = hits_array
+            .as_ref()
+            .and_then(|arr| serde_json::from_value(json!(arr)).ok())
+            .unwrap_or_default();
+
+        if let Some(arr) = hits_array.as_ref()
+            && let Some(hit) = arr.first()
+        {
             ctx.evidence
-                .push(Evidence::new(self.id(), "memory.hit").with_detail(hit));
+                .push(Evidence::new(self.id(), "memory.hit").with_detail(hit.clone()));
         }
+
+        if let Some(arr) = hits_array.as_ref()
+            && (typed_hits.len() == arr.len())
+        {
+            let envelope =
+                memory_lookup_trace_envelope(&ctx.entity_id, self.k, &typed_hits, None, None);
+            ctx.evidence
+                .push(Evidence::new(self.id(), "memory.trace").with_detail(envelope.to_value()));
+        }
+
         Ok(SkillOutcome::noop())
     }
 }
@@ -126,13 +146,45 @@ mod tests {
             result_schema: json!({}),
         };
         let stub: Arc<dyn Tool> = Arc::new(LocalTool::new(schema, |_v| async {
-            Ok(json!({"hits": [{"score": 0.9, "summary": "match", "episode_key": "k"}]}))
+            Ok(json!({"hits": [{"score": 0.9, "summary": "match", "key": "k"}]}))
         }));
         reg.register(stub);
         let mut ctx = InvestigationContext::new("e", "p");
         ctx.confidence = 0.6;
         skill.execute(&mut ctx, &reg).await.unwrap();
-        assert_eq!(ctx.evidence.len(), 1);
+        // memory.hit (raw top JSON) + memory.trace (trace envelope)
+        assert_eq!(ctx.evidence.len(), 2);
         assert_eq!(ctx.evidence[0].label, "memory.hit");
+        assert_eq!(ctx.evidence[1].label, "memory.trace");
+        let trace = &ctx.evidence[1].detail;
+        assert_eq!(trace["resource"], "memory");
+        assert_eq!(trace["operation"], "lookup");
+        assert_eq!(trace["output_summary"]["hit_count"], 1);
+        assert_eq!(trace["output_summary"]["top_key"], "k");
+    }
+
+    #[tokio::test]
+    async fn memory_pivot_emits_no_hits_trace_when_empty() {
+        let skill = MemoryPivotSkill::default();
+        let reg = ToolRegistry::new();
+        let schema = ToolSchema {
+            name: "memory.lookup".into(),
+            description: "stub".into(),
+            args_schema: json!({}),
+            result_schema: json!({}),
+        };
+        let stub: Arc<dyn Tool> = Arc::new(LocalTool::new(schema, |_v| async {
+            Ok(json!({"hits": []}))
+        }));
+        reg.register(stub);
+        let mut ctx = InvestigationContext::new("nothing", "p");
+        ctx.confidence = 0.6;
+        skill.execute(&mut ctx, &reg).await.unwrap();
+        // Only memory.trace — no memory.hit when the array is empty.
+        assert_eq!(ctx.evidence.len(), 1);
+        assert_eq!(ctx.evidence[0].label, "memory.trace");
+        let trace = &ctx.evidence[0].detail;
+        assert_eq!(trace["output_summary"]["hit_count"], 0);
+        assert_eq!(trace["reason"], "no_hits");
     }
 }
