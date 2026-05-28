@@ -45,6 +45,18 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
   non-zero. Closes the trace-envelope half of ROADMAP Next #2; memory
   and baseline paths now share the same envelope shape as security
   findings and graph expansion evidence.
+- `MemoryPivotSkill` now attaches a `memory.trace` evidence entry
+  carrying a `memory_lookup_trace_envelope` alongside the existing
+  `memory.hit` raw-JSON evidence. Stores whose `memory.lookup`
+  response deserialises into `Vec<MemoryLookupHit>` (the canonical
+  `MemoryLookupTool` schema) get the typed envelope; non-canonical
+  stores still receive the legacy raw-JSON evidence and no trace.
+  Empty result arrays emit a trace with `reason = no_hits` and no
+  `memory.hit` evidence.
+- `examples/trace_envelopes.rs` demonstrates emitting the
+  `memory.lookup`, `baseline.compare` (within-bounds and not-found),
+  and `security.finding` envelopes side-by-side as pretty JSON. Run
+  with `cargo run --example trace_envelopes --features full`.
 
 ## [0.2.0](https://github.com/ForeverAngry/rig-resources/compare/v0.1.6...v0.2.0) - 2026-05-28
 

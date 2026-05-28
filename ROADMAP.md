@@ -47,14 +47,18 @@ This roadmap is the crate-local operating plan for `rig-resources`. The cross-cr
 - `ResourceTraceEnvelope` is wired into graph evidence, security
   findings, and `memory.lookup` + `baseline.compare` evaluations via
   `memory_lookup_trace_envelope` / `baseline_compare_trace_envelope`.
+  `MemoryPivotSkill` attaches a `memory.trace` evidence entry on every
+  canonical `memory.lookup` invocation, and
+  `examples/trace_envelopes.rs` emits all four envelope shapes
+  side-by-side.
 
 ## Next Work
 
 1. Extend graph resources with fixture-backed examples for expand, centrality, sparse context, and multi-hop summaries.
-2. Wire the memory and baseline trace envelopes into the
-   `MemoryPivotSkill` / `BaselineCompareSkill` execution paths (or a
-   sample skill that does so) and add an end-to-end example that emits
-   them alongside graph and security evidence.
+2. Promote the trace-envelope evidence to a first-class
+   `InvestigationContext` channel (out-of-band trace stream vs.
+   inline evidence) once a downstream consumer needs to filter by
+   envelope shape rather than re-decode from `Evidence::detail`.
 3. Keep graph and security feature gates clean under the four-feature CI matrix.
 
 ## Maturity Bar
