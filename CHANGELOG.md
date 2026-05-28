@@ -11,6 +11,18 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Add shared provenance fields to resource context projections. Behavior
+  patterns, baselines, memory lookup hits, graph expansions, and accumulated
+  evidence now project stable JSON keys such as `source_uri`, `principal`,
+  `scope`, `recorded_at_millis`, `confidence`, `source_frame_id`,
+  `projection_state`, and `reason` into `ContextItem::provenance`, matching the
+  typed context vocabulary in `rig-compose` without requiring a path dependency.
+- Extend `MemoryLookupHit` with optional source URI, principal, scope, and
+  recorded-at metadata plus builder methods so memory stores can provide enough
+  provenance for prompt-context replay and eval fixtures.
+
 ## [0.1.6](https://github.com/ForeverAngry/rig-resources/compare/v0.1.5...v0.1.6) - 2026-05-27
 
 ### Added

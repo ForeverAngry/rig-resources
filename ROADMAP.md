@@ -18,14 +18,18 @@ This roadmap is the crate-local operating plan for `rig-resources`. The cross-cr
 - Caller-side context projection helpers for behavior patterns, memory
   lookup hits, baselines, and accumulated investigation evidence
   ([src/projection.rs](src/projection.rs)).
+- Shared context-provenance keys across behavior patterns, baselines, memory
+  lookup hits, graph expansions, and accumulated evidence, including source
+  URI, principal, scope, recorded-at time, confidence, source frame id,
+  projection state, and machine-readable reasons where available.
 - `ResourceTraceEnvelope` trace metadata shape
   ([src/trace.rs](src/trace.rs)), attached today to graph expansion evidence.
 
 ## Prototype Grade
 
-- Resource lookup outputs project into caller-side helpers today; folding
-  them into the `rig-compose` `ContextItem` / `ContextPack` vocabulary
-  end-to-end is the next step.
+- Resource lookup outputs project into `rig-compose` `ContextItem` /
+  `ContextPack` helpers with stable provenance keys. Security-specific context
+  projection and broader trace-envelope coverage are still incomplete.
 - Graph resources cover in-memory graph expansion, but not a stable backend-neutral read API for richer graph evals.
 - Security primitives are reusable skills/helpers, not a full policy engine with approvals, sandboxing, secrets, or risk workflows.
 - `ResourceTraceEnvelope` is wired into graph evidence; memory, baseline,
@@ -34,16 +38,14 @@ This roadmap is the crate-local operating plan for `rig-resources`. The cross-cr
 
 ## Next Work
 
-1. Fold the caller-side projection helpers into the `rig-compose`
-   `ContextItem` / `ContextPack` vocabulary so memory lookups, graph
-   expansions, baseline findings, and security findings reach prompt
-   context without per-host glue.
-2. Tighten `memory.lookup` metadata: source URI, principal, timestamp, confidence, scope, and omission/rejection reasons.
-3. Extend graph resources with fixture-backed examples for expand, centrality, sparse context, and multi-hop summaries.
-4. Extend `ResourceTraceEnvelope` coverage to memory, baseline, and
+1. Add security finding projections into the `rig-compose` `ContextItem` /
+  `ContextPack` vocabulary so security helpers reach prompt context without
+  per-host glue.
+2. Extend graph resources with fixture-backed examples for expand, centrality, sparse context, and multi-hop summaries.
+3. Extend `ResourceTraceEnvelope` coverage to memory, baseline, and
    security findings with machine-readable reasons for skipped,
    suppressed, expanded, or escalated outcomes.
-5. Keep graph and security feature gates clean under the four-feature CI matrix.
+4. Keep graph and security feature gates clean under the four-feature CI matrix.
 
 ## Maturity Bar
 

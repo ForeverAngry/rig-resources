@@ -10,6 +10,10 @@ use crate::{BehaviorPattern, EntityBaseline, MemoryLookupHit};
 #[cfg(feature = "graph")]
 use crate::Subgraph;
 
+const STATE_CANDIDATE: &str = "candidate";
+#[cfg(feature = "graph")]
+const STATE_EXPANDED: &str = "expanded";
+
 /// Convert resource-native records into [`ContextItem`] values.
 pub trait IntoContextItem {
     /// Project this resource record into a prompt-ready context item.
@@ -28,6 +32,10 @@ impl IntoContextItem for BehaviorPattern {
             .with_score(f64::from(self.confidence_delta))
             .with_provenance(json!({
                 "resource": "behavior_pattern",
+                "source_uri": format!("behavior-pattern://{}@v{}", self.id, self.version),
+                "confidence": self.confidence_delta,
+                "version_key": self.id,
+                "projection_state": STATE_CANDIDATE,
                 "id": self.id,
                 "version": self.version,
                 "required": self.rule.required,
@@ -51,6 +59,10 @@ impl IntoContextItem for EntityBaseline {
         .with_score(self.samples as f64)
         .with_provenance(json!({
             "resource": "baseline",
+            "source_uri": format!("baseline://{}/{}", self.entity, self.metric),
+            "principal": self.entity,
+            "confidence": self.samples,
+            "projection_state": STATE_CANDIDATE,
             "entity": self.entity,
             "metric": self.metric,
             "mean": self.mean,
@@ -86,6 +98,13 @@ pub fn memory_hit_to_context_item(hit: &MemoryLookupHit, rank: usize) -> Context
         .with_provenance(json!({
             "resource": "memory.lookup",
             "key": hit.key,
+            "source_uri": hit.source_uri,
+            "principal": hit.principal,
+            "scope": hit.scope,
+            "recorded_at_millis": hit.recorded_at_millis,
+            "confidence": hit.score,
+            "source_frame_id": hit.key,
+            "projection_state": STATE_CANDIDATE,
             "score": hit.score,
             "metadata": hit.metadata,
         }))
@@ -129,6 +148,10 @@ pub fn subgraph_to_context_item(subgraph: &Subgraph, rank: usize) -> ContextItem
     .with_score(node_count.saturating_add(edge_count) as f64)
     .with_provenance(json!({
         "resource": "graph.subgraph",
+        "source_uri": format!("graph://{}", subgraph.seed),
+        "principal": subgraph.seed,
+        "projection_state": STATE_EXPANDED,
+        "reason": "graph_expansion",
         "seed": subgraph.seed,
         "nodes": subgraph.nodes,
         "edges": subgraph.edges,
@@ -150,6 +173,10 @@ pub fn evidence_to_context_item(evidence: &Evidence, rank: usize) -> ContextItem
         .with_rank(rank)
         .with_score(evidence_score(&evidence.detail))
         .with_provenance(json!({
+            "resource": "investigation.evidence",
+            "source_uri": format!("evidence://{}/{}", evidence.source_skill, evidence.label),
+            "confidence": evidence_score(&evidence.detail),
+            "projection_state": STATE_CANDIDATE,
             "source_skill": evidence.source_skill,
             "label": evidence.label,
             "detail": evidence.detail,
@@ -207,13 +234,20 @@ mod tests {
         assert_eq!(item.text, "password spray around one host");
         assert!((item.score - 0.25).abs() < 1e-9);
         assert_eq!(item.provenance["resource"], "behavior_pattern");
+        assert_eq!(item.provenance["source_uri"], "behavior-pattern://spray@v2");
+        assert_eq!(item.provenance["projection_state"], "candidate");
         assert_eq!(item.provenance["required"][0], "auth.failure.burst");
     }
 
     #[test]
     fn memory_hits_project_with_stable_ranks() {
         let hits = vec![
-            MemoryLookupHit::new(0.9, "first").with_key("episode-1"),
+            MemoryLookupHit::new(0.9, "first")
+                .with_key("episode-1")
+                .with_source_uri("memory://episode/1")
+                .with_principal("alice")
+                .with_scope("workspace")
+                .with_recorded_at_millis(1_700_000_000_000),
             MemoryLookupHit::new(0.5, "second"),
         ];
 
@@ -223,6 +257,19 @@ mod tests {
         assert_eq!(items[0].source, ContextSourceKind::Memory);
         assert_eq!(items[0].source_id, "episode-1");
         assert_eq!(items[0].rank, 0);
+        assert_eq!(items[0].provenance["source_uri"], "memory://episode/1");
+        assert_eq!(items[0].provenance["principal"], "alice");
+        assert_eq!(items[0].provenance["scope"], "workspace");
+        assert_eq!(
+            items[0].provenance["recorded_at_millis"],
+            1_700_000_000_000_i64
+        );
+        let confidence = items[0].provenance["confidence"]
+            .as_f64()
+            .expect("confidence should serialize as a number");
+        assert!((confidence - 0.9).abs() < 1e-6);
+        assert_eq!(items[0].provenance["source_frame_id"], "episode-1");
+        assert_eq!(items[0].provenance["projection_state"], "candidate");
         assert_eq!(items[1].source_id, "memory.hit/1");
         assert_eq!(items[1].rank, 1);
     }
@@ -267,6 +314,9 @@ mod tests {
         assert_eq!(item.rank, 3);
         assert_eq!(item.score, 3.0);
         assert_eq!(item.provenance["resource"], "graph.subgraph");
+        assert_eq!(item.provenance["source_uri"], "graph://host-1");
+        assert_eq!(item.provenance["projection_state"], "expanded");
+        assert_eq!(item.provenance["reason"], "graph_expansion");
         assert_eq!(item.provenance["seed"], "host-1");
     }
 }
