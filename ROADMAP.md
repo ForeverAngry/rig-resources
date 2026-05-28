@@ -44,17 +44,17 @@ This roadmap is the crate-local operating plan for `rig-resources`. The cross-cr
 - Security primitives are reusable skills/helpers plus a structured
   `SecurityFinding` projection, not a full policy engine with approvals,
   sandboxing, secrets, or risk workflows.
-- `ResourceTraceEnvelope` is wired into graph evidence and security
-  findings; memory and baseline paths still emit local tool outputs
-  without the shared envelope.
+- `ResourceTraceEnvelope` is wired into graph evidence, security
+  findings, and `memory.lookup` + `baseline.compare` evaluations via
+  `memory_lookup_trace_envelope` / `baseline_compare_trace_envelope`.
 
 ## Next Work
 
 1. Extend graph resources with fixture-backed examples for expand, centrality, sparse context, and multi-hop summaries.
-2. Extend `ResourceTraceEnvelope` coverage to memory and baseline
-   findings with machine-readable reasons for skipped, suppressed,
-   expanded, or escalated outcomes (security paths covered by
-   `security_finding_trace_envelope`).
+2. Wire the memory and baseline trace envelopes into the
+   `MemoryPivotSkill` / `BaselineCompareSkill` execution paths (or a
+   sample skill that does so) and add an end-to-end example that emits
+   them alongside graph and security evidence.
 3. Keep graph and security feature gates clean under the four-feature CI matrix.
 
 ## Maturity Bar

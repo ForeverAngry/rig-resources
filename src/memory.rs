@@ -15,6 +15,18 @@ use thiserror::Error;
 
 use rig_compose::{KernelError, Tool, ToolSchema};
 
+use crate::trace::ResourceTraceEnvelope;
+
+const TRACE_RESOURCE: &str = "memory";
+const TRACE_OPERATION: &str = "lookup";
+const TRACE_KIND: &str = "memory_lookup";
+
+/// Reason code emitted on the [`ResourceTraceEnvelope`] when a lookup
+/// returned zero hits.
+pub const TRACE_REASON_NO_HITS: &str = "no_hits";
+/// Reason code emitted when the backing [`MemoryLookupStore`] failed.
+pub const TRACE_REASON_BACKEND_ERROR: &str = "backend_error";
+
 /// Error returned by a [`MemoryLookupStore`].
 #[derive(Debug, Error)]
 pub enum MemoryLookupError {
@@ -203,6 +215,98 @@ impl Tool for MemoryLookupTool {
     }
 }
 
+/// Build a [`ResourceTraceEnvelope`] describing a single `memory.lookup`
+/// invocation.
+///
+/// This complements [`crate::memory_hit_to_context_item`] (the prompt-side
+/// projection) by giving observability and audit consumers a trace-side
+/// record of the query, scope, hit count, and top match. The envelope is
+/// shaped to mirror [`crate::security_finding_trace_envelope`] so the same
+/// downstream pipelines can route both kinds without bespoke shapes.
+///
+/// `principal` and `scope` are optional caller-provided context (typically
+/// the calling agent's tenant or workspace, which the store may or may not
+/// have echoed back on each hit). When `hits` is empty the envelope carries
+/// the [`TRACE_REASON_NO_HITS`] reason code.
+///
+/// ```no_run
+/// use rig_resources::{MemoryLookupHit, memory_lookup_trace_envelope};
+///
+/// let hits = vec![MemoryLookupHit::new(0.82, "matched episode").with_key("ep-7")];
+/// let envelope = memory_lookup_trace_envelope("beacon", 3, &hits, Some("alice"), None);
+/// assert_eq!(envelope.resource, "memory");
+/// assert_eq!(envelope.output_summary["hit_count"], 1);
+/// ```
+#[must_use]
+pub fn memory_lookup_trace_envelope(
+    query: &str,
+    k: usize,
+    hits: &[MemoryLookupHit],
+    principal: Option<&str>,
+    scope: Option<&str>,
+) -> ResourceTraceEnvelope {
+    let mut input = json!({
+        "query": query,
+        "k": k,
+    });
+    if let Some(map) = input.as_object_mut() {
+        if let Some(principal) = principal {
+            map.insert("principal".into(), Value::String(principal.to_string()));
+        }
+        if let Some(scope) = scope {
+            map.insert("scope".into(), Value::String(scope.to_string()));
+        }
+    }
+
+    let mut output = json!({
+        "hit_count": hits.len(),
+    });
+    if let (Some(top), Some(map)) = (hits.first(), output.as_object_mut()) {
+        if let Some(score) = serde_json::Number::from_f64(top.score as f64) {
+            map.insert("top_score".into(), Value::Number(score));
+        }
+        if let Some(key) = &top.key {
+            map.insert("top_key".into(), Value::String(key.clone()));
+        }
+    }
+
+    let mut envelope = ResourceTraceEnvelope::new(TRACE_RESOURCE, TRACE_OPERATION, TRACE_KIND)
+        .with_input_summary(input)
+        .with_output_summary(output);
+
+    if hits.is_empty() {
+        envelope = envelope.with_reason(TRACE_REASON_NO_HITS);
+    }
+
+    if let Some(top) = hits.first() {
+        let mut metadata = serde_json::Map::new();
+        if let Some(source_uri) = &top.source_uri {
+            metadata.insert("source_uri".into(), Value::String(source_uri.clone()));
+        }
+        if let Some(recorded_at_millis) = top.recorded_at_millis {
+            metadata.insert(
+                "recorded_at_millis".into(),
+                Value::Number(serde_json::Number::from(recorded_at_millis)),
+            );
+        }
+        if let Some(top_principal) = &top.principal
+            && principal.is_none_or(|p| p != top_principal)
+        {
+            metadata.insert("top_principal".into(), Value::String(top_principal.clone()));
+        }
+        if let Some(top_scope) = &top.scope
+            && scope.is_none_or(|s| s != top_scope)
+        {
+            metadata.insert("top_scope".into(), Value::String(top_scope.clone()));
+        }
+        if !metadata.is_empty() {
+            envelope = envelope.with_metadata(Value::Object(metadata));
+        }
+    }
+
+    envelope
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,5 +369,70 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(err, KernelError::InvalidArgument(_)));
+    }
+
+    #[test]
+    fn trace_envelope_summarises_hits_and_metadata() {
+        let hits = vec![
+            MemoryLookupHit::new(0.91, "top hit")
+                .with_key("ep-1")
+                .with_source_uri("memory://ep/1")
+                .with_recorded_at_millis(1_700_000_000_000)
+                .with_principal("alice")
+                .with_scope("workspace"),
+            MemoryLookupHit::new(0.42, "runner up").with_key("ep-2"),
+        ];
+
+        let envelope =
+            memory_lookup_trace_envelope("beacon", 3, &hits, Some("alice"), Some("workspace"));
+
+        assert_eq!(envelope.version, ResourceTraceEnvelope::VERSION);
+        assert_eq!(envelope.resource, "memory");
+        assert_eq!(envelope.operation, "lookup");
+        assert_eq!(envelope.trace_kind, "memory_lookup");
+        assert_eq!(envelope.input_summary["query"], "beacon");
+        assert_eq!(envelope.input_summary["k"], 3);
+        assert_eq!(envelope.input_summary["principal"], "alice");
+        assert_eq!(envelope.input_summary["scope"], "workspace");
+        assert_eq!(envelope.output_summary["hit_count"], 2);
+        let top_score = envelope.output_summary["top_score"].as_f64().unwrap();
+        assert!((top_score - 0.91).abs() < 1e-6);
+        assert_eq!(envelope.output_summary["top_key"], "ep-1");
+        assert!(envelope.reason.is_none());
+        assert_eq!(envelope.metadata["source_uri"], "memory://ep/1");
+        assert_eq!(
+            envelope.metadata["recorded_at_millis"],
+            1_700_000_000_000_i64
+        );
+        // Caller-supplied principal/scope matches the top hit, so they are
+        // not echoed into metadata.
+        assert!(envelope.metadata.get("top_principal").is_none());
+        assert!(envelope.metadata.get("top_scope").is_none());
+    }
+
+    #[test]
+    fn trace_envelope_emits_no_hits_reason_when_empty() {
+        let envelope = memory_lookup_trace_envelope("nothing", 5, &[], None, None);
+        assert_eq!(envelope.output_summary["hit_count"], 0);
+        assert!(envelope.output_summary.get("top_score").is_none());
+        assert_eq!(envelope.reason.as_deref(), Some(TRACE_REASON_NO_HITS));
+        assert!(envelope.metadata.is_null());
+        assert!(envelope.input_summary.get("principal").is_none());
+    }
+
+    #[test]
+    fn trace_envelope_records_mismatched_top_principal_scope() {
+        let hits = vec![
+            MemoryLookupHit::new(0.5, "cross-tenant")
+                .with_key("ep-9")
+                .with_principal("bob")
+                .with_scope("other"),
+        ];
+
+        let envelope =
+            memory_lookup_trace_envelope("q", 1, &hits, Some("alice"), Some("workspace"));
+
+        assert_eq!(envelope.metadata["top_principal"], "bob");
+        assert_eq!(envelope.metadata["top_scope"], "other");
     }
 }

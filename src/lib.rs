@@ -30,9 +30,12 @@ pub mod security;
 
 pub use baseline::{
     BaselineCompareTool, BaselineError, BaselineStore, EntityBaseline, InMemoryBaselineStore,
-    OnlineStats,
+    OnlineStats, baseline_compare_trace_envelope,
 };
-pub use memory::{MemoryLookupError, MemoryLookupHit, MemoryLookupStore, MemoryLookupTool};
+pub use memory::{
+    MemoryLookupError, MemoryLookupHit, MemoryLookupStore, MemoryLookupTool,
+    memory_lookup_trace_envelope,
+};
 pub use patterns::{
     BehaviorPattern, BehaviorPatternSkill, BehaviorRegistry, PatternId, PatternRule,
 };
