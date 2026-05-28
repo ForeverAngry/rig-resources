@@ -13,6 +13,8 @@ This roadmap is the crate-local operating plan for `rig-resources`. The cross-cr
 - Canonical `memory.lookup` tool contract with `MemoryLookupStore`, `MemoryLookupHit`, and `MemoryLookupTool`.
 - `MemoryPivotSkill` that calls a registered `memory.lookup` tool after confidence crosses a threshold.
 - Optional `graph` feature with `GraphStore`, `InMemoryGraph`, `GraphTool`, and `GraphExpansionSkill`.
+- Fixture-backed graph example for expand, centrality, sparse context,
+  and multi-hop context summaries ([examples/graph_fixtures.rs](examples/graph_fixtures.rs)).
 - Optional `security` feature with credential, ECS signal, exfiltration, lateral-movement, reconnaissance, and related security helpers.
 - `full` feature covering graph and security together.
 - Caller-side context projection helpers for behavior patterns, memory
@@ -54,7 +56,8 @@ This roadmap is the crate-local operating plan for `rig-resources`. The cross-cr
 
 ## Next Work
 
-1. Extend graph resources with fixture-backed examples for expand, centrality, sparse context, and multi-hop summaries.
+1. Add graph-specific eval fixtures that consume `Subgraph` / graph-projected
+  context items and compare sparse vs. multi-hop retrieval quality.
 2. Promote the trace-envelope evidence to a first-class
    `InvestigationContext` channel (out-of-band trace stream vs.
    inline evidence) once a downstream consumer needs to filter by

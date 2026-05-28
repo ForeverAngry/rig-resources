@@ -86,7 +86,7 @@ store
         entity: "host-1".into(),
         metric: "fanout".into(),
         mean: 100.0,
-The default build is intentionally small. Graph resources are behind `graph`; security primitives are behind `security`; `full` enables both.
+        std_dev: 5.0,
         samples: 128,
     })
     .await?;
@@ -98,10 +98,15 @@ let output = tool
 
 assert_eq!(output.get("available").and_then(serde_json::Value::as_bool), Some(true));
 assert_eq!(output.get("within").and_then(serde_json::Value::as_bool), Some(true));
-- `rig-compose` dependency: `version = "0.4"`.
+# Ok(())
+# }
 ```
 
-Graph behavior is covered by tests in [src/graph/tool.rs](src/graph/tool.rs), [src/graph/skills.rs](src/graph/skills.rs), and [src/graph/inmem.rs](src/graph/inmem.rs) when the `graph` feature is enabled.
+Graph behavior is covered by tests in [src/graph/tool.rs](src/graph/tool.rs), [src/graph/skills.rs](src/graph/skills.rs), and [src/graph/inmem.rs](src/graph/inmem.rs) when the `graph` feature is enabled. For a fixture-backed walkthrough of expand, centrality, sparse context, and multi-hop summary projection, run:
+
+```sh
+cargo run --example graph_fixtures --features graph
+```
 
 ## Validation
 
