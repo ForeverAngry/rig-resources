@@ -11,6 +11,25 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Structured security-finding projection under the `security` feature.
+  New `SecurityFinding` + `FindingSeverity` types and
+  `security_finding_to_context_item` /
+  `security_findings_to_context_items` helpers project findings into
+  `rig_compose::ContextItem` with the shared provenance vocabulary
+  (`source_uri`, `principal`, `scope`, `recorded_at_millis`,
+  `confidence`, `projection_state`) plus security-specific keys
+  (`finding_id`, `severity`, `technique_id`, `tactic`, `source_skill`,
+  `signals`, `detail`). `SecurityFinding` also implements
+  `IntoContextItem`. Validates the typed context vocabulary in
+  `rig-compose` with a structurally distinct second producer alongside
+  memory-shaped projections.
+- `security_finding_trace_envelope` produces a `ResourceTraceEnvelope`
+  describing the finding (input signals, output severity/confidence,
+  optional MITRE technique/tactic metadata) so trace consumers see the
+  same shape used by graph expansion evidence.
+
 ## [0.2.0](https://github.com/ForeverAngry/rig-resources/compare/v0.1.6...v0.2.0) - 2026-05-28
 
 ### Added

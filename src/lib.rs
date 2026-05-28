@@ -50,3 +50,9 @@ pub use graph::{
     GraphEdge, GraphError, GraphExpansionConfig, GraphExpansionSkill, GraphStore, GraphTool,
     InMemoryGraph, Subgraph,
 };
+
+#[cfg(feature = "security")]
+pub use security::{
+    FindingSeverity, SecurityFinding, security_finding_to_context_item,
+    security_finding_trace_envelope, security_findings_to_context_items,
+};

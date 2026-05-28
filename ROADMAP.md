@@ -22,30 +22,40 @@ This roadmap is the crate-local operating plan for `rig-resources`. The cross-cr
   lookup hits, graph expansions, and accumulated evidence, including source
   URI, principal, scope, recorded-at time, confidence, source frame id,
   projection state, and machine-readable reasons where available.
+- Structured security-finding projection: `SecurityFinding` +
+  `FindingSeverity` + `security_finding_to_context_item` /
+  `security_findings_to_context_items` (feature `security`) project
+  detector output into `rig_compose::ContextItem` with the shared
+  provenance vocabulary plus security-specific keys (`finding_id`,
+  `severity`, `technique_id`, `tactic`, `source_skill`, `signals`,
+  `detail`).
 - `ResourceTraceEnvelope` trace metadata shape
-  ([src/trace.rs](src/trace.rs)), attached today to graph expansion evidence.
+  ([src/trace.rs](src/trace.rs)), attached today to graph expansion evidence
+  and to security findings via `security_finding_trace_envelope`.
 
 ## Prototype Grade
 
 - Resource lookup outputs project into `rig-compose` `ContextItem` /
-  `ContextPack` helpers with stable provenance keys. Security-specific context
-  projection and broader trace-envelope coverage are still incomplete.
+  `ContextPack` helpers with stable provenance keys. Security findings now
+  share that surface via `security_finding_to_context_item`; broader
+  trace-envelope coverage for memory and baseline paths is still
+  incomplete.
 - Graph resources cover in-memory graph expansion, but not a stable backend-neutral read API for richer graph evals.
-- Security primitives are reusable skills/helpers, not a full policy engine with approvals, sandboxing, secrets, or risk workflows.
-- `ResourceTraceEnvelope` is wired into graph evidence; memory, baseline,
-  and security paths still emit local tool outputs without the shared
-  envelope.
+- Security primitives are reusable skills/helpers plus a structured
+  `SecurityFinding` projection, not a full policy engine with approvals,
+  sandboxing, secrets, or risk workflows.
+- `ResourceTraceEnvelope` is wired into graph evidence and security
+  findings; memory and baseline paths still emit local tool outputs
+  without the shared envelope.
 
 ## Next Work
 
-1. Add security finding projections into the `rig-compose` `ContextItem` /
-  `ContextPack` vocabulary so security helpers reach prompt context without
-  per-host glue.
-2. Extend graph resources with fixture-backed examples for expand, centrality, sparse context, and multi-hop summaries.
-3. Extend `ResourceTraceEnvelope` coverage to memory, baseline, and
-   security findings with machine-readable reasons for skipped,
-   suppressed, expanded, or escalated outcomes.
-4. Keep graph and security feature gates clean under the four-feature CI matrix.
+1. Extend graph resources with fixture-backed examples for expand, centrality, sparse context, and multi-hop summaries.
+2. Extend `ResourceTraceEnvelope` coverage to memory and baseline
+   findings with machine-readable reasons for skipped, suppressed,
+   expanded, or escalated outcomes (security paths covered by
+   `security_finding_trace_envelope`).
+3. Keep graph and security feature gates clean under the four-feature CI matrix.
 
 ## Maturity Bar
 

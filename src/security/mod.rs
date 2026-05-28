@@ -3,8 +3,14 @@
 pub mod credential;
 pub mod ecs;
 pub mod exfil;
+pub mod finding;
 pub mod lateral;
 pub mod recon;
+
+pub use finding::{
+    FindingSeverity, SecurityFinding, security_finding_to_context_item,
+    security_finding_trace_envelope, security_findings_to_context_items,
+};
 
 use std::sync::Arc;
 
