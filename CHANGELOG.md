@@ -29,6 +29,22 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
   describing the finding (input signals, output severity/confidence,
   optional MITRE technique/tactic metadata) so trace consumers see the
   same shape used by graph expansion evidence.
+- `memory_lookup_trace_envelope` produces a `ResourceTraceEnvelope` for
+  a single `memory.lookup` invocation. Captures the query, requested
+  `k`, optional caller `principal` / `scope`, hit count, top score and
+  key, top-hit `source_uri` / `recorded_at_millis`, and emits the
+  `no_hits` reason code when the store returned nothing. Mismatches
+  between the caller's principal/scope and the top hit's are surfaced
+  in `metadata`.
+- `baseline_compare_trace_envelope` produces a `ResourceTraceEnvelope`
+  for a single `baseline.compare` evaluation. Captures `entity`,
+  `metric`, observed value, and `k`, plus the mean / std-dev / bound /
+  deviation when a baseline exists, and emits one of three reason
+  codes (`baseline_not_found`, `within_bounds`, `exceeds_bounds`).
+  Metadata carries `samples` and the signed `z_score` when std-dev is
+  non-zero. Closes the trace-envelope half of ROADMAP Next #2; memory
+  and baseline paths now share the same envelope shape as security
+  findings and graph expansion evidence.
 
 ## [0.2.0](https://github.com/ForeverAngry/rig-resources/compare/v0.1.6...v0.2.0) - 2026-05-28
 

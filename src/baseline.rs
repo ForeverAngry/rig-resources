@@ -11,6 +11,20 @@ use thiserror::Error;
 
 use rig_compose::{KernelError, Tool, ToolSchema};
 
+use crate::trace::ResourceTraceEnvelope;
+
+const TRACE_RESOURCE: &str = "baseline";
+const TRACE_OPERATION: &str = "compare";
+const TRACE_KIND: &str = "baseline_compare";
+
+/// Reason emitted when no baseline existed for the requested
+/// `(entity, metric)` pair.
+pub const TRACE_REASON_NOT_FOUND: &str = "baseline_not_found";
+/// Reason emitted when the observation fell inside the `mean ± k·σ` bound.
+pub const TRACE_REASON_WITHIN_BOUNDS: &str = "within_bounds";
+/// Reason emitted when the observation fell outside the `mean ± k·σ` bound.
+pub const TRACE_REASON_EXCEEDS_BOUNDS: &str = "exceeds_bounds";
+
 #[derive(Debug, Error)]
 pub enum BaselineError {
     #[error("baseline `{entity}/{metric}` not found")]
@@ -231,6 +245,99 @@ impl Tool for BaselineCompareTool {
     }
 }
 
+/// Build a [`ResourceTraceEnvelope`] describing a single `baseline.compare`
+/// evaluation.
+///
+/// Pass `baseline` as `Some(&EntityBaseline)` when the store had a record
+/// for the `(entity, metric)` pair, or `None` to record a not-available
+/// comparison. The envelope mirrors the structure of
+/// [`crate::security_finding_trace_envelope`] and
+/// [`crate::memory_lookup_trace_envelope`] so audit and observability
+/// pipelines can route all three with one shape.
+///
+/// Reason codes:
+/// * `None` → [`TRACE_REASON_NOT_FOUND`]
+/// * `Some(_)` and inside `mean ± k·σ` → [`TRACE_REASON_WITHIN_BOUNDS`]
+/// * `Some(_)` and outside the bound → [`TRACE_REASON_EXCEEDS_BOUNDS`]
+///
+/// ```no_run
+/// use rig_resources::{EntityBaseline, baseline_compare_trace_envelope};
+///
+/// let baseline = EntityBaseline {
+///     entity: "host-1".into(),
+///     metric: "fanout".into(),
+///     mean: 10.0,
+///     std_dev: 2.0,
+///     samples: 100,
+/// };
+/// let envelope =
+///     baseline_compare_trace_envelope("host-1", "fanout", 11.0, 2.0, Some(&baseline));
+/// assert_eq!(envelope.resource, "baseline");
+/// assert_eq!(envelope.output_summary["within"], true);
+/// ```
+#[must_use]
+pub fn baseline_compare_trace_envelope(
+    entity: &str,
+    metric: &str,
+    observed: f64,
+    k: f64,
+    baseline: Option<&EntityBaseline>,
+) -> ResourceTraceEnvelope {
+    let input = json!({
+        "entity": entity,
+        "metric": metric,
+        "observed_value": observed,
+        "k": k,
+    });
+
+    let mut envelope = ResourceTraceEnvelope::new(TRACE_RESOURCE, TRACE_OPERATION, TRACE_KIND)
+        .with_input_summary(input);
+
+    match baseline {
+        None => {
+            envelope = envelope
+                .with_output_summary(json!({
+                    "available": false,
+                    "within": false,
+                }))
+                .with_reason(TRACE_REASON_NOT_FOUND);
+        }
+        Some(baseline) => {
+            let within = baseline.within(observed, k);
+            let bound = (k * baseline.std_dev).max(f64::EPSILON);
+            let deviation = (observed - baseline.mean).abs();
+            envelope = envelope
+                .with_output_summary(json!({
+                    "available": true,
+                    "within": within,
+                    "mean": baseline.mean,
+                    "std_dev": baseline.std_dev,
+                    "bound": bound,
+                    "deviation": deviation,
+                }))
+                .with_reason(if within {
+                    TRACE_REASON_WITHIN_BOUNDS
+                } else {
+                    TRACE_REASON_EXCEEDS_BOUNDS
+                });
+
+            let mut metadata = json!({
+                "samples": baseline.samples,
+            });
+            if baseline.std_dev > f64::EPSILON
+                && let Some(map) = metadata.as_object_mut()
+                && let Some(z) =
+                    serde_json::Number::from_f64((observed - baseline.mean) / baseline.std_dev)
+            {
+                map.insert("z_score".into(), Value::Number(z));
+            }
+            envelope = envelope.with_metadata(metadata);
+        }
+    }
+
+    envelope
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,5 +391,53 @@ mod tests {
             .unwrap();
         assert_eq!(out["available"], true);
         assert_eq!(out["within"], true);
+    }
+
+    #[test]
+    fn trace_envelope_within_bounds_includes_metadata() {
+        let b = baseline("host-1", "fanout", 10.0, 2.0);
+        let envelope = baseline_compare_trace_envelope("host-1", "fanout", 11.0, 2.0, Some(&b));
+
+        assert_eq!(envelope.version, ResourceTraceEnvelope::VERSION);
+        assert_eq!(envelope.resource, "baseline");
+        assert_eq!(envelope.operation, "compare");
+        assert_eq!(envelope.trace_kind, "baseline_compare");
+        assert_eq!(envelope.input_summary["entity"], "host-1");
+        assert_eq!(envelope.input_summary["metric"], "fanout");
+        let observed = envelope.input_summary["observed_value"].as_f64().unwrap();
+        assert!((observed - 11.0).abs() < 1e-9);
+        assert_eq!(envelope.output_summary["available"], true);
+        assert_eq!(envelope.output_summary["within"], true);
+        let mean = envelope.output_summary["mean"].as_f64().unwrap();
+        assert!((mean - 10.0).abs() < 1e-9);
+        let bound = envelope.output_summary["bound"].as_f64().unwrap();
+        assert!((bound - 4.0).abs() < 1e-9);
+        assert_eq!(envelope.reason.as_deref(), Some(TRACE_REASON_WITHIN_BOUNDS));
+        assert_eq!(envelope.metadata["samples"], 100);
+        let z = envelope.metadata["z_score"].as_f64().unwrap();
+        assert!((z - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn trace_envelope_exceeds_bounds_sets_reason() {
+        let b = baseline("host-1", "fanout", 10.0, 2.0);
+        let envelope = baseline_compare_trace_envelope("host-1", "fanout", 20.0, 2.0, Some(&b));
+        assert_eq!(envelope.output_summary["within"], false);
+        assert_eq!(
+            envelope.reason.as_deref(),
+            Some(TRACE_REASON_EXCEEDS_BOUNDS)
+        );
+        let deviation = envelope.output_summary["deviation"].as_f64().unwrap();
+        assert!((deviation - 10.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn trace_envelope_not_found_omits_baseline_fields() {
+        let envelope = baseline_compare_trace_envelope("ghost", "metric", 7.0, 2.0, None);
+        assert_eq!(envelope.output_summary["available"], false);
+        assert_eq!(envelope.output_summary["within"], false);
+        assert!(envelope.output_summary.get("mean").is_none());
+        assert_eq!(envelope.reason.as_deref(), Some(TRACE_REASON_NOT_FOUND));
+        assert!(envelope.metadata.is_null());
     }
 }
