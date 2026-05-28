@@ -57,6 +57,11 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
   `memory.lookup`, `baseline.compare` (within-bounds and not-found),
   and `security.finding` envelopes side-by-side as pretty JSON. Run
   with `cargo run --example trace_envelopes --features full`.
+- `examples/graph_fixtures.rs` provides a fixture-backed graph walkthrough
+  covering `graph.entity` expansion, centrality, sparse-context handling
+  through `GraphExpansionSkill`, and a multi-hop expansion projected into
+  a context-item summary. Run with
+  `cargo run --example graph_fixtures --features graph`.
 
 ## [0.2.0](https://github.com/ForeverAngry/rig-resources/compare/v0.1.6...v0.2.0) - 2026-05-28
 
