@@ -11,6 +11,19 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/ForeverAngry/rig-resources/compare/v0.2.0...v0.2.1) - 2026-05-28
+
+### Added
+
+- *(graph)* Add fixture-backed graph examples ([#28](https://github.com/ForeverAngry/rig-resources/pull/28))
+- *(skills)* Wire memory_lookup_trace_envelope into MemoryPivotSkill ([#27](https://github.com/ForeverAngry/rig-resources/pull/27))
+- *(trace)* Memory.lookup and baseline.compare trace envelopes ([#26](https://github.com/ForeverAngry/rig-resources/pull/26))
+- *(security)* Project SecurityFinding into rig-compose context ([#25](https://github.com/ForeverAngry/rig-resources/pull/25))
+
+### Documentation
+
+- Refresh README status to reflect shipped 0.2.0 ([#23](https://github.com/ForeverAngry/rig-resources/pull/23))
+
 ### Added
 
 - Structured security-finding projection under the `security` feature.
