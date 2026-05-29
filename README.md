@@ -20,7 +20,7 @@ Agent systems built on `rig-compose` need common resources that should not live 
 
 ## Status
 
-- Crate version: `0.2.0`.
+- Crate version: `0.2.1`.
 - Rust edition: 2024.
 - MSRV: 1.88.
 - Runtime stance: runtime-agnostic library; `tokio` is only a dev-dependency.
