@@ -11,6 +11,12 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+## [0.2.2](https://github.com/ForeverAngry/rig-resources/compare/v0.2.1...v0.2.2) - 2026-06-01
+
+### Documentation
+
+- Document resource API surface ([#32](https://github.com/ForeverAngry/rig-resources/pull/32))
+
 ## [0.2.1](https://github.com/ForeverAngry/rig-resources/compare/v0.2.0...v0.2.1) - 2026-05-28
 
 ### Added
