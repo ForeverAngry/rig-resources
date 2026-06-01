@@ -43,4 +43,11 @@ mod tests {
         assert!(outcome.confidence_delta > 0.0);
         assert_eq!(ctx.evidence.len(), 1);
     }
+
+    #[test]
+    fn does_not_apply_without_burst_signal() {
+        let skill = PasswordSpraySkill;
+        let ctx = InvestigationContext::new("a", "p").with_signal("auth.failure");
+        assert!(!skill.applies(&ctx));
+    }
 }

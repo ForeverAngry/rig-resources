@@ -9,17 +9,29 @@ use rig_compose::{InvestigationContext, Signal};
 
 /// Common signal names consumed by the built-in security skills and pattern registry.
 pub mod signals {
+    /// Successful authentication event.
     pub const AUTH_SUCCESS: &str = "auth.success";
+    /// Failed authentication event.
     pub const AUTH_FAILURE: &str = "auth.failure";
+    /// Aggregated burst of authentication failures.
     pub const AUTH_FAILURE_BURST: &str = "auth.failure.burst";
+    /// Regular outbound beaconing cadence.
     pub const BEACON_REGULAR: &str = "beacon.regular";
+    /// DNS query event.
     pub const DNS_QUERY: &str = "dns.query";
+    /// Anomalous grammar or domain entropy signal.
     pub const ENTROPY_ANOMALOUS: &str = "entropy.anomalous";
+    /// High fan-out from one entity to many peers.
     pub const FANOUT_HIGH: &str = "fanout.high";
+    /// Explicit lateral-movement action.
     pub const LATERAL_MOVE: &str = "lateral.move";
+    /// Network connection event.
     pub const NET_CONNECT: &str = "net.connect";
+    /// Outbound network direction.
     pub const NETWORK_EGRESS: &str = "network.egress";
+    /// Inbound network direction.
     pub const NETWORK_INGRESS: &str = "network.ingress";
+    /// Process-spawn event.
     pub const PROCESS_SPAWN: &str = "process.spawn";
 }
 
@@ -128,6 +140,17 @@ mod tests {
         let signals = ecs_security_signals(row);
         assert!(signals.contains(&signals::PROCESS_SPAWN));
         assert!(signals.contains(&signals::LATERAL_MOVE));
+    }
+
+    #[test]
+    fn ignores_rows_without_security_fields() {
+        let row = br#"{"event.category":"file","event.action":"read"}"#;
+        assert!(ecs_security_signals(row).is_empty());
+    }
+
+    #[test]
+    fn rejects_non_utf8_rows() {
+        assert!(ecs_security_signals(&[0xff, 0xfe, 0xfd]).is_empty());
     }
 
     #[test]

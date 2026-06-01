@@ -9,11 +9,16 @@ use rig_compose::{
     Evidence, InvestigationContext, KernelError, NextAction, Skill, SkillOutcome, ToolRegistry,
 };
 
+/// Configuration for [`GraphExpansionSkill`].
 #[derive(Debug, Clone)]
 pub struct GraphExpansionConfig {
+    /// Minimum confidence required before graph expansion runs.
     pub min_confidence: f32,
+    /// Expansion depth passed to [`GraphTool`].
     pub depth: usize,
+    /// Distinct-neighbour threshold required to lift confidence.
     pub fanout_threshold: usize,
+    /// Confidence delta applied when fan-out exceeds the threshold.
     pub confidence_lift: f32,
 }
 
@@ -28,17 +33,21 @@ impl Default for GraphExpansionConfig {
     }
 }
 
+/// Skill that pivots through the graph and lifts confidence on high fan-out.
 pub struct GraphExpansionSkill {
     cfg: GraphExpansionConfig,
 }
 
 impl GraphExpansionSkill {
+    /// Stable skill identifier.
     pub const ID: &'static str = "graph.expansion";
 
+    /// Build a graph expansion skill from explicit config.
     pub fn new(cfg: GraphExpansionConfig) -> Self {
         Self { cfg }
     }
 
+    /// Build a graph expansion skill with default config.
     pub fn with_defaults() -> Self {
         Self::new(GraphExpansionConfig::default())
     }

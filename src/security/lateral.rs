@@ -56,4 +56,13 @@ mod tests {
         assert!((outcome.confidence_delta - 0.3).abs() < 1e-6);
         assert!(matches!(outcome.next_actions[0], NextAction::Conclude));
     }
+
+    #[test]
+    fn partial_chain_does_not_apply() {
+        let skill = AuthSpawnConnectSkill;
+        let ctx = InvestigationContext::new("a", "p")
+            .with_signal("auth.success")
+            .with_signal("process.spawn");
+        assert!(!skill.applies(&ctx));
+    }
 }

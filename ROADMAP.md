@@ -70,6 +70,8 @@ This roadmap is the crate-local operating plan for `rig-resources`. The cross-cr
 - Missing/sparse resources return typed no-op or not-applicable outcomes rather than stringly errors.
 - Graph and security features remain optional and do not leak dependencies into default builds.
 - Tests cover default, `security`, `graph`, and `full` feature combinations.
+- The crate intentionally tracks `rig-compose`'s MSRV floor (`1.88` today);
+  bump this only when the kernel crate does.
 
 ## Non-Goals
 

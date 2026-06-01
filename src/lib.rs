@@ -4,6 +4,7 @@
 //! This crate owns reusable implementations: skills, tools, pattern
 //! registries, baseline stores, and optional graph resources.
 
+#![deny(missing_docs)]
 #![cfg_attr(
     test,
     allow(

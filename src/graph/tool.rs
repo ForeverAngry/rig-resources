@@ -9,17 +9,21 @@ use serde_json::{Value, json};
 use super::store::{GraphEdge, GraphError, GraphStore};
 use rig_compose::{KernelError, Tool, ToolSchema};
 
+/// `graph.entity` tool for upsert, expand, and centrality operations.
 pub struct GraphTool {
     store: Arc<dyn GraphStore>,
 }
 
 impl GraphTool {
+    /// Canonical graph tool name.
     pub const NAME: &'static str = "graph.entity";
 
+    /// Build a graph tool backed by `store`.
     pub fn new(store: Arc<dyn GraphStore>) -> Self {
         Self { store }
     }
 
+    /// Build a trait-object handle suitable for direct registry insertion.
     pub fn arc(store: Arc<dyn GraphStore>) -> Arc<dyn Tool> {
         Arc::new(Self::new(store))
     }
