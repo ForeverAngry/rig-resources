@@ -26,18 +26,17 @@
 //! .with_technique_id("T1110.003");
 //!
 //! let item = security_finding_to_context_item(&finding, 0);
-//! assert_eq!(item.provenance["finding_id"], "credential.password_spray");
-//! assert_eq!(item.provenance["severity"], "high");
+//! assert_eq!(item.metadata["finding_id"], "credential.password_spray");
+//! assert_eq!(item.metadata["severity"], "high");
 //! ```
 
-use rig_compose::{ContextItem, ContextSourceKind};
+use rig_compose::{ContextItem, ContextProjectionState, ContextProvenance, ContextSourceKind};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::projection::IntoContextItem;
 use crate::trace::ResourceTraceEnvelope;
 
-const STATE_CANDIDATE: &str = "candidate";
 const TRACE_RESOURCE: &str = "security";
 const TRACE_OPERATION: &str = "finding";
 const TRACE_KIND: &str = "security_finding";
@@ -275,6 +274,21 @@ pub fn security_finding_to_context_item(finding: &SecurityFinding, rank: usize) 
     let source_uri = finding.resolved_source_uri();
     let confidence = finding.effective_confidence();
 
+    let mut prov = ContextProvenance::new()
+        .with_projection_state(ContextProjectionState::Candidate)
+        .with_confidence(confidence);
+
+    prov = prov.with_source_uri(source_uri);
+    if let Some(principal) = &finding.principal {
+        prov = prov.with_principal(principal);
+    }
+    if let Some(scope) = &finding.scope {
+        prov = prov.with_scope(scope);
+    }
+    if let Some(ms) = finding.recorded_at_millis {
+        prov = prov.with_recorded_at_millis(ms);
+    }
+
     ContextItem::new(
         ContextSourceKind::Resource,
         source_id,
@@ -282,14 +296,9 @@ pub fn security_finding_to_context_item(finding: &SecurityFinding, rank: usize) 
     )
     .with_rank(rank)
     .with_score(confidence)
-    .with_provenance(json!({
+    .with_context_provenance(prov)
+    .with_metadata(json!({
         "resource": "security.finding",
-        "source_uri": source_uri,
-        "principal": finding.principal,
-        "scope": finding.scope,
-        "recorded_at_millis": finding.recorded_at_millis,
-        "confidence": confidence,
-        "projection_state": STATE_CANDIDATE,
         "finding_id": finding.id,
         "severity": finding.severity.as_str(),
         "technique_id": finding.technique_id,
@@ -402,24 +411,27 @@ mod tests {
         assert_eq!(item.rank, 3);
         assert!((item.score - FindingSeverity::High.confidence_weight()).abs() < 1e-9);
 
-        let p = &item.provenance;
-        // Shared vocabulary
-        assert_eq!(p["resource"], "security.finding");
-        assert_eq!(p["source_uri"], "siem://event/42");
-        assert_eq!(p["principal"], "host-1");
-        assert_eq!(p["scope"], "workspace");
-        assert_eq!(p["recorded_at_millis"], 1_700_000_000_000_i64);
-        assert_eq!(p["projection_state"], "candidate");
-        let confidence = p["confidence"].as_f64().unwrap();
+        let m = &item.metadata;
+        assert_eq!(m["resource"], "security.finding");
+        assert_eq!(m["finding_id"], "credential.password_spray");
+        assert_eq!(m["severity"], "high");
+        assert_eq!(m["technique_id"], "T1110.003");
+        assert_eq!(m["tactic"], "credential-access");
+        assert_eq!(m["source_skill"], "credential.password_spray");
+        assert_eq!(m["signals"][0], "auth.failure.burst");
+        assert_eq!(m["detail"]["distinct_accounts"], 17);
+
+        let prov = item.context_provenance().unwrap();
+        assert_eq!(prov.source_uri.unwrap(), "siem://event/42");
+        assert_eq!(prov.principal.unwrap(), "host-1");
+        assert_eq!(prov.scope.unwrap(), "workspace");
+        assert_eq!(prov.recorded_at_millis.unwrap(), 1_700_000_000_000_i64);
+        assert_eq!(
+            prov.projection_state.unwrap(),
+            ContextProjectionState::Candidate
+        );
+        let confidence = prov.confidence.unwrap();
         assert!((confidence - FindingSeverity::High.confidence_weight()).abs() < 1e-9);
-        // Security-specific
-        assert_eq!(p["finding_id"], "credential.password_spray");
-        assert_eq!(p["severity"], "high");
-        assert_eq!(p["technique_id"], "T1110.003");
-        assert_eq!(p["tactic"], "credential-access");
-        assert_eq!(p["source_skill"], "credential.password_spray");
-        assert_eq!(p["signals"][0], "auth.failure.burst");
-        assert_eq!(p["detail"]["distinct_accounts"], 17);
     }
 
     #[test]
@@ -429,10 +441,10 @@ mod tests {
 
         assert_eq!(item.source_id, "security.finding/recon.high_fanout");
         assert_eq!(
-            item.provenance["source_uri"],
+            item.context_provenance().unwrap().source_uri.unwrap(),
             "security-finding://recon.high_fanout"
         );
-        assert!(item.provenance["principal"].is_null());
+        assert!(item.context_provenance().unwrap().principal.is_none());
     }
 
     #[test]
@@ -440,7 +452,7 @@ mod tests {
         let finding = SecurityFinding::new("exfil.slow_beacon", FindingSeverity::Low, "beacon")
             .with_confidence(0.99);
         let item = security_finding_to_context_item(&finding, 0);
-        let confidence = item.provenance["confidence"].as_f64().unwrap();
+        let confidence = item.context_provenance().unwrap().confidence.unwrap();
         assert!((confidence - 0.99).abs() < 1e-9);
         assert!((item.score - 0.99).abs() < 1e-9);
     }
@@ -467,7 +479,7 @@ mod tests {
             "chain",
         );
         let item: ContextItem = finding.to_context_item();
-        assert_eq!(item.provenance["severity"], "critical");
+        assert_eq!(item.metadata["severity"], "critical");
     }
 
     #[test]
