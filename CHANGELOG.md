@@ -11,6 +11,16 @@ from [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased]
 
+## [0.2.3](https://github.com/ForeverAngry/rig-resources/compare/v0.2.2...v0.2.3) - 2026-06-01
+
+### Added
+
+- *(projection)* Use stabilized typed ContextProvenance vocabulary ([#34](https://github.com/ForeverAngry/rig-resources/pull/34))
+
+### Documentation
+
+- Align README Status with shipped 0.2.2 ([#29](https://github.com/ForeverAngry/rig-resources/pull/29))
+
 ## [0.2.2](https://github.com/ForeverAngry/rig-resources/compare/v0.2.1...v0.2.2) - 2026-06-01
 
 ### Documentation
