@@ -1,17 +1,21 @@
 #![allow(clippy::unwrap_used, clippy::panic, clippy::indexing_slicing)]
 
-use rig_compose::{ContextSourceKind, Evidence, InvestigationContext};
+use rig_compose::{ContextProjectionState, ContextSourceKind, Evidence, InvestigationContext};
 use rig_resources::{
     BehaviorPattern, EntityBaseline, IntoContextItem, MemoryLookupHit, PatternRule,
     evidence_to_context_item, evidence_to_context_items, memory_hit_to_context_item,
 };
 use serde_json::json;
 
-fn assert_shared_candidate_keys(provenance: &serde_json::Value) {
-    assert!(provenance.get("resource").is_some());
-    assert!(provenance.get("source_uri").is_some());
-    assert_eq!(provenance["projection_state"], "candidate");
-    assert!(provenance.get("confidence").is_some());
+fn assert_shared_candidate_keys(item: &rig_compose::ContextItem) {
+    assert!(item.metadata.get("resource").is_some());
+    let prov = item.context_provenance().unwrap();
+    assert!(prov.source_uri.is_some());
+    assert_eq!(
+        prov.projection_state.unwrap(),
+        ContextProjectionState::Candidate
+    );
+    assert!(prov.confidence.is_some());
 }
 
 #[test]
@@ -28,9 +32,17 @@ fn default_resource_projections_carry_shared_provenance_keys() {
     .with_description("password spray");
     let pattern_item = pattern.to_context_item();
     assert_eq!(pattern_item.source, ContextSourceKind::Resource);
-    assert_shared_candidate_keys(&pattern_item.provenance);
-    assert_eq!(pattern_item.provenance["resource"], "behavior_pattern");
-    assert_eq!(pattern_item.provenance["version_key"], "spray");
+    assert_shared_candidate_keys(&pattern_item);
+    assert_eq!(pattern_item.metadata["resource"], "behavior_pattern");
+    assert_eq!(
+        pattern_item
+            .context_provenance()
+            .unwrap()
+            .version_key
+            .as_deref()
+            .unwrap(),
+        "spray"
+    );
 
     let baseline = EntityBaseline {
         entity: "host-1".into(),
@@ -41,8 +53,16 @@ fn default_resource_projections_carry_shared_provenance_keys() {
     };
     let baseline_item = baseline.to_context_item();
     assert_eq!(baseline_item.source, ContextSourceKind::Resource);
-    assert_shared_candidate_keys(&baseline_item.provenance);
-    assert_eq!(baseline_item.provenance["principal"], "host-1");
+    assert_shared_candidate_keys(&baseline_item);
+    assert_eq!(
+        baseline_item
+            .context_provenance()
+            .unwrap()
+            .principal
+            .as_deref()
+            .unwrap(),
+        "host-1"
+    );
 
     let memory = MemoryLookupHit::new(0.8, "prior incident")
         .with_key("frame-1")
@@ -52,9 +72,18 @@ fn default_resource_projections_carry_shared_provenance_keys() {
         .with_recorded_at_millis(1_700_000_000_000);
     let memory_item = memory_hit_to_context_item(&memory, 3);
     assert_eq!(memory_item.source, ContextSourceKind::Memory);
-    assert_shared_candidate_keys(&memory_item.provenance);
-    assert_eq!(memory_item.provenance["scope"], "tenant-a");
-    assert_eq!(memory_item.provenance["source_frame_id"], "frame-1");
+    assert_shared_candidate_keys(&memory_item);
+    let memory_prov = memory_item.context_provenance().unwrap();
+    assert_eq!(memory_prov.scope.as_deref().unwrap(), "tenant-a");
+    assert_eq!(
+        memory_prov
+            .source_frame_id
+            .as_ref()
+            .unwrap()
+            .as_str()
+            .unwrap(),
+        "frame-1"
+    );
 
     let evidence = Evidence::new("detector", "finding").with_detail(json!({
         "summary": "high fan-out",
@@ -62,8 +91,8 @@ fn default_resource_projections_carry_shared_provenance_keys() {
     }));
     let evidence_item = evidence_to_context_item(&evidence, 1);
     assert_eq!(evidence_item.source, ContextSourceKind::Resource);
-    assert_shared_candidate_keys(&evidence_item.provenance);
-    assert_eq!(evidence_item.provenance["source_skill"], "detector");
+    assert_shared_candidate_keys(&evidence_item);
+    assert_eq!(evidence_item.metadata["source_skill"], "detector");
 
     let mut ctx = InvestigationContext::new("host-1", "tenant-a");
     ctx.evidence.push(evidence);
@@ -83,11 +112,15 @@ fn graph_projection_uses_expanded_state_and_reason() {
     let item = subgraph_to_context_item(&subgraph, 0);
 
     assert_eq!(item.source, ContextSourceKind::Resource);
-    assert_eq!(item.provenance["resource"], "graph.subgraph");
-    assert_eq!(item.provenance["source_uri"], "graph://host-1");
-    assert_eq!(item.provenance["principal"], "host-1");
-    assert_eq!(item.provenance["projection_state"], "expanded");
-    assert_eq!(item.provenance["reason"], "graph_expansion");
+    assert_eq!(item.metadata["resource"], "graph.subgraph");
+    let prov = item.context_provenance().unwrap();
+    assert_eq!(prov.source_uri.as_deref().unwrap(), "graph://host-1");
+    assert_eq!(prov.principal.as_deref().unwrap(), "host-1");
+    assert_eq!(
+        prov.projection_state.unwrap(),
+        ContextProjectionState::Expanded
+    );
+    assert_eq!(prov.reason.as_deref().unwrap(), "graph_expansion");
 }
 
 #[cfg(feature = "security")]
@@ -112,12 +145,15 @@ fn security_projection_carries_shared_and_security_specific_keys() {
     let item = security_finding_to_context_item(&finding, 0);
 
     assert_eq!(item.source, ContextSourceKind::Resource);
-    assert_shared_candidate_keys(&item.provenance);
-    assert_eq!(item.provenance["resource"], "security.finding");
-    assert_eq!(item.provenance["principal"], "host-1");
-    assert_eq!(item.provenance["scope"], "tenant-a");
-    assert_eq!(item.provenance["finding_id"], "credential.password_spray");
-    assert_eq!(item.provenance["severity"], "high");
-    assert_eq!(item.provenance["technique_id"], "T1110.003");
-    assert_eq!(item.provenance["signals"][0], "auth.failure.burst");
+    assert_shared_candidate_keys(&item);
+    assert_eq!(item.metadata["resource"], "security.finding");
+
+    let prov = item.context_provenance().unwrap();
+    assert_eq!(prov.principal.as_deref().unwrap(), "host-1");
+    assert_eq!(prov.scope.as_deref().unwrap(), "tenant-a");
+
+    assert_eq!(item.metadata["finding_id"], "credential.password_spray");
+    assert_eq!(item.metadata["severity"], "high");
+    assert_eq!(item.metadata["technique_id"], "T1110.003");
+    assert_eq!(item.metadata["signals"][0], "auth.failure.burst");
 }

@@ -1,7 +1,8 @@
 //! Projection helpers for `rig-compose` context packing.
 
 use rig_compose::{
-    ContextItem, ContextPack, ContextPackConfig, ContextSourceKind, Evidence, InvestigationContext,
+    ContextItem, ContextPack, ContextPackConfig, ContextProjectionState, ContextProvenance,
+    ContextSourceKind, Evidence, InvestigationContext,
 };
 use serde_json::{Value, json};
 
@@ -9,10 +10,6 @@ use crate::{BehaviorPattern, EntityBaseline, MemoryLookupHit};
 
 #[cfg(feature = "graph")]
 use crate::Subgraph;
-
-const STATE_CANDIDATE: &str = "candidate";
-#[cfg(feature = "graph")]
-const STATE_EXPANDED: &str = "expanded";
 
 /// Convert resource-native records into [`ContextItem`] values.
 pub trait IntoContextItem {
@@ -30,12 +27,15 @@ impl IntoContextItem for BehaviorPattern {
         };
         ContextItem::new(ContextSourceKind::Resource, source_id, text)
             .with_score(f64::from(self.confidence_delta))
-            .with_provenance(json!({
+            .with_context_provenance(
+                ContextProvenance::new()
+                    .with_source_uri(format!("behavior-pattern://{}@v{}", self.id, self.version))
+                    .with_confidence(f64::from(self.confidence_delta))
+                    .with_version_key(&self.id)
+                    .with_projection_state(ContextProjectionState::Candidate),
+            )
+            .with_metadata(json!({
                 "resource": "behavior_pattern",
-                "source_uri": format!("behavior-pattern://{}@v{}", self.id, self.version),
-                "confidence": self.confidence_delta,
-                "version_key": self.id,
-                "projection_state": STATE_CANDIDATE,
                 "id": self.id,
                 "version": self.version,
                 "required": self.rule.required,
@@ -57,12 +57,15 @@ impl IntoContextItem for EntityBaseline {
             ),
         )
         .with_score(self.samples as f64)
-        .with_provenance(json!({
+        .with_context_provenance(
+            ContextProvenance::new()
+                .with_source_uri(format!("baseline://{}/{}", self.entity, self.metric))
+                .with_principal(&self.entity)
+                .with_confidence(self.samples as f64)
+                .with_projection_state(ContextProjectionState::Candidate),
+        )
+        .with_metadata(json!({
             "resource": "baseline",
-            "source_uri": format!("baseline://{}/{}", self.entity, self.metric),
-            "principal": self.entity,
-            "confidence": self.samples,
-            "projection_state": STATE_CANDIDATE,
             "entity": self.entity,
             "metric": self.metric,
             "mean": self.mean,
@@ -92,19 +95,32 @@ pub fn memory_hit_to_context_item(hit: &MemoryLookupHit, rank: usize) -> Context
         .key
         .clone()
         .unwrap_or_else(|| format!("memory.hit/{rank}"));
+    let mut prov = ContextProvenance::new()
+        .with_projection_state(ContextProjectionState::Candidate)
+        .with_confidence(f64::from(hit.score));
+    if let Some(uri) = &hit.source_uri {
+        prov = prov.with_source_uri(uri);
+    }
+    if let Some(principal) = &hit.principal {
+        prov = prov.with_principal(principal);
+    }
+    if let Some(scope) = &hit.scope {
+        prov = prov.with_scope(scope);
+    }
+    if let Some(ms) = hit.recorded_at_millis {
+        prov = prov.with_recorded_at_millis(ms);
+    }
+    if let Some(key) = &hit.key {
+        prov = prov.with_source_frame_id(key);
+    }
+
     ContextItem::new(ContextSourceKind::Memory, source_id, hit.summary.clone())
         .with_rank(rank)
         .with_score(f64::from(hit.score))
-        .with_provenance(json!({
+        .with_context_provenance(prov)
+        .with_metadata(json!({
             "resource": "memory.lookup",
             "key": hit.key,
-            "source_uri": hit.source_uri,
-            "principal": hit.principal,
-            "scope": hit.scope,
-            "recorded_at_millis": hit.recorded_at_millis,
-            "confidence": hit.score,
-            "source_frame_id": hit.key,
-            "projection_state": STATE_CANDIDATE,
             "score": hit.score,
             "metadata": hit.metadata,
         }))
@@ -146,12 +162,15 @@ pub fn subgraph_to_context_item(subgraph: &Subgraph, rank: usize) -> ContextItem
     )
     .with_rank(rank)
     .with_score(node_count.saturating_add(edge_count) as f64)
-    .with_provenance(json!({
+    .with_context_provenance(
+        ContextProvenance::new()
+            .with_source_uri(format!("graph://{}", subgraph.seed))
+            .with_principal(&subgraph.seed)
+            .with_projection_state(ContextProjectionState::Expanded)
+            .with_reason("graph_expansion"),
+    )
+    .with_metadata(json!({
         "resource": "graph.subgraph",
-        "source_uri": format!("graph://{}", subgraph.seed),
-        "principal": subgraph.seed,
-        "projection_state": STATE_EXPANDED,
-        "reason": "graph_expansion",
         "seed": subgraph.seed,
         "nodes": subgraph.nodes,
         "edges": subgraph.edges,
@@ -172,11 +191,17 @@ pub fn evidence_to_context_item(evidence: &Evidence, rank: usize) -> ContextItem
     ContextItem::new(source, source_id, evidence_text(evidence))
         .with_rank(rank)
         .with_score(evidence_score(&evidence.detail))
-        .with_provenance(json!({
+        .with_context_provenance(
+            ContextProvenance::new()
+                .with_source_uri(format!(
+                    "evidence://{}/{}",
+                    evidence.source_skill, evidence.label
+                ))
+                .with_confidence(evidence_score(&evidence.detail))
+                .with_projection_state(ContextProjectionState::Candidate),
+        )
+        .with_metadata(json!({
             "resource": "investigation.evidence",
-            "source_uri": format!("evidence://{}/{}", evidence.source_skill, evidence.label),
-            "confidence": evidence_score(&evidence.detail),
-            "projection_state": STATE_CANDIDATE,
             "source_skill": evidence.source_skill,
             "label": evidence.label,
             "detail": evidence.detail,
@@ -233,10 +258,14 @@ mod tests {
         assert_eq!(item.source_id, "behavior_pattern/spray@v2");
         assert_eq!(item.text, "password spray around one host");
         assert!((item.score - 0.25).abs() < 1e-9);
-        assert_eq!(item.provenance["resource"], "behavior_pattern");
-        assert_eq!(item.provenance["source_uri"], "behavior-pattern://spray@v2");
-        assert_eq!(item.provenance["projection_state"], "candidate");
-        assert_eq!(item.provenance["required"][0], "auth.failure.burst");
+        assert_eq!(item.metadata["resource"], "behavior_pattern");
+        let prov = item.context_provenance().unwrap();
+        assert_eq!(prov.source_uri.unwrap(), "behavior-pattern://spray@v2");
+        assert_eq!(
+            prov.projection_state.unwrap(),
+            ContextProjectionState::Candidate
+        );
+        assert_eq!(item.metadata["required"][0], "auth.failure.burst");
     }
 
     #[test]
@@ -257,19 +286,20 @@ mod tests {
         assert_eq!(items[0].source, ContextSourceKind::Memory);
         assert_eq!(items[0].source_id, "episode-1");
         assert_eq!(items[0].rank, 0);
-        assert_eq!(items[0].provenance["source_uri"], "memory://episode/1");
-        assert_eq!(items[0].provenance["principal"], "alice");
-        assert_eq!(items[0].provenance["scope"], "workspace");
-        assert_eq!(
-            items[0].provenance["recorded_at_millis"],
-            1_700_000_000_000_i64
-        );
-        let confidence = items[0].provenance["confidence"]
-            .as_f64()
+        let prov = items[0].context_provenance().unwrap();
+        assert_eq!(prov.source_uri.unwrap(), "memory://episode/1");
+        assert_eq!(prov.principal.unwrap(), "alice");
+        assert_eq!(prov.scope.unwrap(), "workspace");
+        assert_eq!(prov.recorded_at_millis.unwrap(), 1_700_000_000_000_i64);
+        let confidence = prov
+            .confidence
             .expect("confidence should serialize as a number");
         assert!((confidence - 0.9).abs() < 1e-6);
-        assert_eq!(items[0].provenance["source_frame_id"], "episode-1");
-        assert_eq!(items[0].provenance["projection_state"], "candidate");
+        assert_eq!(prov.source_frame_id.unwrap(), "episode-1");
+        assert_eq!(
+            prov.projection_state.unwrap(),
+            ContextProjectionState::Candidate
+        );
         assert_eq!(items[1].source_id, "memory.hit/1");
         assert_eq!(items[1].rank, 1);
     }
@@ -313,10 +343,14 @@ mod tests {
         assert_eq!(item.source_id, "graph/host-1");
         assert_eq!(item.rank, 3);
         assert_eq!(item.score, 3.0);
-        assert_eq!(item.provenance["resource"], "graph.subgraph");
-        assert_eq!(item.provenance["source_uri"], "graph://host-1");
-        assert_eq!(item.provenance["projection_state"], "expanded");
-        assert_eq!(item.provenance["reason"], "graph_expansion");
-        assert_eq!(item.provenance["seed"], "host-1");
+        assert_eq!(item.metadata["resource"], "graph.subgraph");
+        let prov = item.context_provenance().unwrap();
+        assert_eq!(prov.source_uri.unwrap(), "graph://host-1");
+        assert_eq!(
+            prov.projection_state.unwrap(),
+            ContextProjectionState::Expanded
+        );
+        assert_eq!(prov.reason.unwrap(), "graph_expansion");
+        assert_eq!(item.metadata["seed"], "host-1");
     }
 }
