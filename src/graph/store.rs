@@ -6,8 +6,10 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+/// Errors returned by graph stores.
 #[derive(Debug, Error)]
 pub enum GraphError {
+    /// The requested entity does not exist in the graph.
     #[error("graph entity `{0}` not found")]
     NotFound(String),
 }
@@ -15,14 +17,19 @@ pub enum GraphError {
 /// Directed edge `src --kind--> dst` observed at `ts`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GraphEdge {
+    /// Source entity id.
     pub src: String,
+    /// Destination entity id.
     pub dst: String,
+    /// Edge relation kind.
     pub kind: String,
+    /// Observation timestamp.
     #[serde(with = "ts_serde")]
     pub ts: SystemTime,
 }
 
 impl GraphEdge {
+    /// Build a timestamped directed edge observed now.
     pub fn new(src: impl Into<String>, dst: impl Into<String>, kind: impl Into<String>) -> Self {
         Self {
             src: src.into(),
@@ -33,17 +40,25 @@ impl GraphEdge {
     }
 }
 
+/// Bounded graph expansion result around a seed entity.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Subgraph {
+    /// Seed entity used for expansion.
     pub seed: String,
+    /// Entity ids included in the expansion.
     pub nodes: Vec<String>,
+    /// Directed edges included in the expansion.
     pub edges: Vec<GraphEdge>,
 }
 
+/// Storage contract for selective entity graph operations.
 #[async_trait]
 pub trait GraphStore: Send + Sync {
+    /// Insert or replace a directed edge.
     async fn upsert_edge(&self, edge: GraphEdge) -> Result<(), GraphError>;
+    /// Expand from `entity` up to `depth` hops.
     async fn expand(&self, entity: &str, depth: usize) -> Result<Subgraph, GraphError>;
+    /// Return normalized out-degree centrality for `entity`.
     async fn centrality(&self, entity: &str) -> f64;
 }
 

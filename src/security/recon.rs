@@ -7,6 +7,7 @@ use rig_compose::{Evidence, InvestigationContext, KernelError, Skill, SkillOutco
 
 /// Fires when a `fanout.high` signal is present.
 pub struct HighFanoutSkill {
+    /// Confidence lift applied when the signal is present.
     pub lift: f32,
 }
 
@@ -40,6 +41,7 @@ impl Skill for HighFanoutSkill {
 
 /// Fires when grammar entropy looks anomalous (`entropy.anomalous` signal).
 pub struct EntropyCheckSkill {
+    /// Confidence lift applied when entropy is anomalous.
     pub lift: f32,
 }
 
@@ -83,5 +85,30 @@ mod tests {
         let outcome = skill.execute(&mut ctx, &registry).await.unwrap();
         assert!(outcome.confidence_delta > 0.0);
         assert_eq!(ctx.evidence.len(), 1);
+    }
+
+    #[test]
+    fn high_fanout_does_not_apply_without_signal() {
+        let skill = HighFanoutSkill::default();
+        let ctx = InvestigationContext::new("a", "p");
+        assert!(!skill.applies(&ctx));
+    }
+
+    #[tokio::test]
+    async fn entropy_lifts_when_signal_present() {
+        let skill = EntropyCheckSkill::default();
+        let registry = ToolRegistry::new();
+        let mut ctx = InvestigationContext::new("a", "p").with_signal("entropy.anomalous");
+        assert!(skill.applies(&ctx));
+        let outcome = skill.execute(&mut ctx, &registry).await.unwrap();
+        assert!((outcome.confidence_delta - 0.1).abs() < 1e-6);
+        assert_eq!(ctx.evidence.len(), 1);
+    }
+
+    #[test]
+    fn entropy_does_not_apply_without_signal() {
+        let skill = EntropyCheckSkill::default();
+        let ctx = InvestigationContext::new("a", "p");
+        assert!(!skill.applies(&ctx));
     }
 }

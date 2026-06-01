@@ -41,4 +41,11 @@ mod tests {
         let outcome = skill.execute(&mut ctx, &registry).await.unwrap();
         assert!(outcome.confidence_delta > 0.0);
     }
+
+    #[test]
+    fn does_not_apply_without_beacon_signal() {
+        let skill = SlowBeaconSkill;
+        let ctx = InvestigationContext::new("a", "p").with_signal("network.egress");
+        assert!(!skill.applies(&ctx));
+    }
 }

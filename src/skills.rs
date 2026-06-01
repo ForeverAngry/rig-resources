@@ -39,7 +39,9 @@ impl Skill for BaselineCompareSkill {
 /// crossed `min_confidence`. Records the top hit as evidence; never
 /// adjusts confidence on its own (memory is context, not a verdict).
 pub struct MemoryPivotSkill {
+    /// Minimum investigation confidence required before memory lookup runs.
     pub min_confidence: f32,
+    /// Number of memory hits requested from the `memory.lookup` tool.
     pub k: usize,
 }
 

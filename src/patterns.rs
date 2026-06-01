@@ -11,19 +11,23 @@ use rig_compose::{
     Evidence, InvestigationContext, KernelError, NextAction, Skill, SkillOutcome, ToolRegistry,
 };
 
+/// Stable identifier for a behavior pattern.
 pub type PatternId = String;
 
 /// One rule clause: every signal in `required` must be present, and none
 /// of the signals in `forbidden` may be present.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct PatternRule {
+    /// Signals that must be present for the rule to match.
     #[serde(default)]
     pub required: Vec<String>,
+    /// Signals that must be absent for the rule to match.
     #[serde(default)]
     pub forbidden: Vec<String>,
 }
 
 impl PatternRule {
+    /// Return `true` when `ctx` satisfies required and forbidden signals.
     pub fn matches(&self, ctx: &InvestigationContext) -> bool {
         self.required.iter().all(|s| ctx.has_signal(s))
             && self.forbidden.iter().all(|s| !ctx.has_signal(s))
@@ -33,16 +37,23 @@ impl PatternRule {
 /// One immutable behaviour pattern.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BehaviorPattern {
+    /// Stable pattern identifier.
     pub id: PatternId,
+    /// Monotonic pattern version; higher versions replace older registry entries.
     pub version: u32,
+    /// Human-readable pattern description.
     pub description: String,
+    /// Signal rule used to match investigations.
     pub rule: PatternRule,
+    /// Confidence delta applied when the pattern matches.
     pub confidence_delta: f32,
+    /// Whether a match should request conclusion of the investigation loop.
     #[serde(default)]
     pub conclude: bool,
 }
 
 impl BehaviorPattern {
+    /// Build a behavior pattern with an empty description.
     pub fn new(id: impl Into<String>, version: u32, rule: PatternRule, delta: f32) -> Self {
         Self {
             id: id.into(),
@@ -54,11 +65,13 @@ impl BehaviorPattern {
         }
     }
 
+    /// Attach a human-readable description.
     pub fn with_description(mut self, description: impl Into<String>) -> Self {
         self.description = description.into();
         self
     }
 
+    /// Mark this pattern as requesting a conclude action on match.
     pub fn concluding(mut self) -> Self {
         self.conclude = true;
         self
@@ -73,10 +86,13 @@ pub struct BehaviorRegistry {
 }
 
 impl BehaviorRegistry {
+    /// Create an empty behavior-pattern registry.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Register a pattern, replacing an existing pattern with the same id
+    /// when the new version is greater than or equal to the stored version.
     pub fn register(&self, pattern: BehaviorPattern) {
         let mut guard = self.inner.write();
         if let Some(existing) = guard.iter_mut().find(|p| p.id == pattern.id) {
@@ -88,20 +104,24 @@ impl BehaviorRegistry {
         }
     }
 
+    /// Register every pattern from `patterns`.
     pub fn extend<I: IntoIterator<Item = BehaviorPattern>>(&self, patterns: I) {
         for pattern in patterns {
             self.register(pattern);
         }
     }
 
+    /// Number of patterns currently registered.
     pub fn len(&self) -> usize {
         self.inner.read().len()
     }
 
+    /// Whether the registry is empty.
     pub fn is_empty(&self) -> bool {
         self.inner.read().is_empty()
     }
 
+    /// Clone all registered patterns in registry order.
     pub fn snapshot(&self) -> Vec<BehaviorPattern> {
         self.inner.read().clone()
     }
@@ -114,8 +134,10 @@ pub struct BehaviorPatternSkill {
 }
 
 impl BehaviorPatternSkill {
+    /// Stable skill identifier.
     pub const ID: &'static str = "knowledge.behavior_pattern";
 
+    /// Build a skill backed by a behavior-pattern registry.
     pub fn new(registry: BehaviorRegistry) -> Self {
         Self { registry }
     }

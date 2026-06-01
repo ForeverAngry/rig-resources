@@ -88,24 +88,30 @@ impl GraphState {
     }
 }
 
+/// Thread-safe in-memory graph store for examples, tests, and lightweight
+/// single-process agents.
 #[derive(Clone, Default)]
 pub struct InMemoryGraph {
     state: Arc<RwLock<GraphState>>,
 }
 
 impl InMemoryGraph {
+    /// Create an empty in-memory graph.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Create an empty graph wrapped in [`Arc`] for tool/skill registration.
     pub fn arc() -> Arc<Self> {
         Arc::new(Self::new())
     }
 
+    /// Number of distinct entity nodes currently stored.
     pub fn node_count(&self) -> usize {
         self.state.read().graph.node_count()
     }
 
+    /// Number of typed directed edges currently stored.
     pub fn edge_count(&self) -> usize {
         self.state.read().graph.edge_count()
     }
@@ -171,5 +177,24 @@ mod tests {
         let graph = InMemoryGraph::new();
         let err = graph.expand("missing", 1).await.unwrap_err();
         assert!(matches!(err, GraphError::NotFound(entity) if entity == "missing"));
+    }
+
+    #[tokio::test]
+    async fn centrality_scales_against_highest_out_degree() {
+        let graph = InMemoryGraph::new();
+        for dst in ["b", "c", "d", "e"] {
+            graph
+                .upsert_edge(GraphEdge::new("hub", dst, "related"))
+                .await
+                .unwrap();
+        }
+        graph
+            .upsert_edge(GraphEdge::new("spoke", "leaf", "related"))
+            .await
+            .unwrap();
+
+        assert_eq!(graph.centrality("hub").await, 1.0);
+        assert!((graph.centrality("spoke").await - 0.25).abs() < f64::EPSILON);
+        assert_eq!(graph.centrality("unknown").await, 0.0);
     }
 }

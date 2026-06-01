@@ -25,23 +25,36 @@ pub const TRACE_REASON_WITHIN_BOUNDS: &str = "within_bounds";
 /// Reason emitted when the observation fell outside the `mean ± k·σ` bound.
 pub const TRACE_REASON_EXCEEDS_BOUNDS: &str = "exceeds_bounds";
 
+/// Errors returned by baseline stores.
 #[derive(Debug, Error)]
 pub enum BaselineError {
+    /// No baseline exists for an entity/metric pair.
     #[error("baseline `{entity}/{metric}` not found")]
-    NotFound { entity: String, metric: String },
+    NotFound {
+        /// Entity identifier used for lookup.
+        entity: String,
+        /// Metric identifier used for lookup.
+        metric: String,
+    },
 }
 
 /// Statistical envelope for one (entity, metric) pair.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntityBaseline {
+    /// Entity identifier (host, user, service, etc.).
     pub entity: String,
+    /// Metric name represented by this baseline.
     pub metric: String,
+    /// Observed mean.
     pub mean: f64,
+    /// Sample standard deviation.
     pub std_dev: f64,
+    /// Number of observations used to build the baseline.
     pub samples: u64,
 }
 
 impl EntityBaseline {
+    /// Build a baseline envelope from online statistics.
     pub fn from_stats(
         entity: impl Into<String>,
         metric: impl Into<String>,
@@ -56,6 +69,7 @@ impl EntityBaseline {
         }
     }
 
+    /// Return `true` when `value` falls within `mean ± k * std_dev`.
     pub fn within(&self, value: f64, k: f64) -> bool {
         let bound = (k * self.std_dev).max(f64::EPSILON);
         (value - self.mean).abs() <= bound
@@ -74,10 +88,12 @@ pub struct OnlineStats {
 }
 
 impl OnlineStats {
+    /// Create an empty accumulator.
     pub fn new() -> Self {
         Self::default()
     }
 
+    /// Add one sample to the accumulator.
     pub fn push(&mut self, value: f64) {
         self.count = self.count.saturating_add(1);
         let delta = value - self.mean;
@@ -86,14 +102,17 @@ impl OnlineStats {
         self.m2 += delta * delta2;
     }
 
+    /// Number of samples observed.
     pub fn count(&self) -> u64 {
         self.count
     }
 
+    /// Whether no samples have been observed.
     pub fn is_empty(&self) -> bool {
         self.count == 0
     }
 
+    /// Current mean, or `0.0` before the first sample.
     pub fn mean(&self) -> f64 {
         self.mean
     }
@@ -107,10 +126,12 @@ impl OnlineStats {
         }
     }
 
+    /// Sample standard deviation.
     pub fn std_dev(&self) -> f64 {
         self.variance().sqrt()
     }
 
+    /// Convert the accumulated stats into an [`EntityBaseline`].
     pub fn to_baseline(
         &self,
         entity: impl Into<String>,
@@ -120,28 +141,37 @@ impl OnlineStats {
     }
 }
 
+/// Storage contract for entity/metric baselines.
 #[async_trait]
 pub trait BaselineStore: Send + Sync {
+    /// Insert or replace a baseline.
     async fn put(&self, baseline: EntityBaseline) -> Result<(), BaselineError>;
+    /// Fetch one baseline by entity and metric.
     async fn get(&self, entity: &str, metric: &str) -> Result<EntityBaseline, BaselineError>;
+    /// Return `true` when a baseline exists for entity and metric.
     async fn contains(&self, entity: &str, metric: &str) -> bool;
 }
 
+/// In-memory baseline store for tests, examples, and single-process agents.
 #[derive(Clone, Default)]
 pub struct InMemoryBaselineStore {
     inner: Arc<RwLock<HashMap<(String, String), EntityBaseline>>>,
 }
 
 impl InMemoryBaselineStore {
+    /// Create an empty store.
     pub fn new() -> Self {
         Self::default()
     }
+    /// Create an empty store wrapped in [`Arc`].
     pub fn arc() -> Arc<Self> {
         Arc::new(Self::new())
     }
+    /// Number of baselines stored.
     pub fn len(&self) -> usize {
         self.inner.read().len()
     }
+    /// Whether the store contains no baselines.
     pub fn is_empty(&self) -> bool {
         self.inner.read().is_empty()
     }
@@ -178,12 +208,15 @@ pub struct BaselineCompareTool {
 }
 
 impl BaselineCompareTool {
+    /// Canonical tool name registered with `rig-compose`.
     pub const NAME: &'static str = "baseline.compare";
 
+    /// Build a tool backed by `store`.
     pub fn new(store: Arc<dyn BaselineStore>) -> Self {
         Self { store }
     }
 
+    /// Build a trait-object handle suitable for direct registry insertion.
     pub fn arc(store: Arc<dyn BaselineStore>) -> Arc<dyn Tool> {
         Arc::new(Self::new(store))
     }
